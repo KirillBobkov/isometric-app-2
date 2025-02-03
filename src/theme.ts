@@ -4,7 +4,7 @@ export const appTheme = createTheme({
   palette: {
     mode: 'dark',
     primary: {
-      main: '#0048ca', // Primary blue color
+      main: '#6bc2ff', // Primary blue color
       light: '#42A5F5',
       dark: '#004BA0',
       contrastText: '#FFFFFF'
@@ -16,8 +16,8 @@ export const appTheme = createTheme({
       contrastText: '#000000'
     },
     background: {
-      default: '#121212', // Dark background
-      paper: '#161616' // Slightly lighter background for cards and papers
+      default: '#000000', // Dark background
+      paper: '#191919' // Slightly lighter background for cards and papers
     },
     text: {
       primary: '#FFFFFF', // Main text color

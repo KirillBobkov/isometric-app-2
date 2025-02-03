@@ -2,30 +2,29 @@
 import { Grid, Typography, Collapse, Button } from "@mui/material";
 import React, { useState } from "react";
 import { Container } from "@mui/material";
-import InfoCard from "../InfoCard"; // Импортируем наш новый компонентexport 
-
+import { InfoCard } from "../InfoCard"; // Импортируем наш новый компонентexport
 
 export const LoadMode = () => {
-    // Состояние для управления видимостью блока
-    const [isContentVisible, setIsContentVisible] = useState(false);
+  // Состояние для управления видимостью блока
+  const [isContentVisible, setIsContentVisible] = useState(false);
 
-    // Функция для переключения видимости блока и текста кнопки
-    const toggleContentVisibility = () => {
-      setIsContentVisible((prevState) => !prevState);
-    };
-  
-    return (
-      <Container maxWidth="lg" sx={{ py: { xs: 4, md: 8 } }}>
-        {/* Главный заголовок */}
-        <Typography
-          variant="h3"
-          component="h1"
-          align="center"
-          sx={{ p: 2, mb: 3, fontWeight: "bold", textTransform: "uppercase" }}
-          gutterBottom
-        >
-          Режим нагрузки (Load mode)
-        </Typography>
+  // Функция для переключения видимости блока и текста кнопки
+  const toggleContentVisibility = () => {
+    setIsContentVisible((prevState) => !prevState);
+  };
+
+  return (
+    <Container maxWidth="lg" sx={{ py: { xs: 4, md: 1 } }}>
+      {/* Главный заголовок */}
+      <Typography
+        variant="h3"
+        component="h1"
+        align="center"
+        sx={{ p: "1 2", fontWeight: "bold", textTransform: "uppercase" }}
+        gutterBottom
+      >
+        Режим нагрузки (Load mode)
+      </Typography>
 
       {/* Кнопка показать/скрыть описание */}
       <Button
@@ -33,11 +32,11 @@ export const LoadMode = () => {
         color="inherit"
         onClick={toggleContentVisibility}
         sx={{
-          display: 'block',
-          m: '0 auto',
+          display: "block",
+          m: "0 auto",
           opacity: 0.5,
           mb: 4,
-          borderRadius: '50',
+          borderRadius: "50",
           backgroundColor: "transparent", // Прозрачный фон
           border: "none", // Убираем рамку
           justifyContent: "space-between", // Размещаем текст и иконку по разные стороны
@@ -84,7 +83,7 @@ export const LoadMode = () => {
             />
           </Grid>
         </Grid>
-        </Collapse>
-      </Container>
-    );
-  };
+      </Collapse>
+    </Container>
+  );
+};
