@@ -7,7 +7,7 @@ import { MaxMode } from "./components/modes/MaxMode.tsx";
 import { AverageMode } from "./components/modes/AverageMode.tsx";
 import { TimedMode } from "./components/modes/TimedMode.tsx";
 import { LoadMode } from "./components/modes/LoadMode.tsx";
-import { BluetoothService } from "./BluetoothService.ts";
+import { BluetoothService } from "./BluetoothService.js";
 
 const bluetoothService = new BluetoothService();
 
