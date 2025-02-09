@@ -1,6 +1,7 @@
 {
   "name": "fitness-trainer-app",
   "private": true,
+  "homepage": "https://kirillbobkov.github.io/isometric-app-2/",
   "version": "0.0.0",
   "type": "module",
   "scripts": {
