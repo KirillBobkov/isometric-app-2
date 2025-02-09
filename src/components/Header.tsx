@@ -3,8 +3,6 @@ import {
   AppBar,
   Toolbar,
   Typography,
-  Tabs,
-  Tab,
   Button,
   useTheme,
   useMediaQuery,
@@ -14,17 +12,14 @@ import { Dumbbell, Bluetooth } from "lucide-react";
 export const Header = ({
   connected,
   onToggleConnect,
-  selectedTab,
-  setSelectedTab,
 }: any) => {
   const theme = useTheme();
   const mobile = useMediaQuery('(max-width:650px)');
 
-
   return (
     <AppBar
       position="fixed" color="transparent"
-      sx={{ background: 'transparent', backdropFilter: "blur(8px)" }}
+      sx={{ background: 'backgorund.default'  }}
     >
       <Toolbar sx={{ padding: 2, display: 'flex', justifyContent: 'space-between' }}>
         <Dumbbell
@@ -53,7 +48,7 @@ export const Header = ({
         </Button>
       </Toolbar>
 
-      <Tabs
+      {/* <Tabs
         value={selectedTab}
         onChange={(event, newValue) => setSelectedTab(newValue)}
         variant="scrollable"
@@ -85,7 +80,7 @@ export const Header = ({
         <Tab disabled={!connected} label="Average mode" />
         <Tab  disabled={!connected} label="Timed mode" />
         <Tab  disabled={!connected} label="Load mode" />
-      </Tabs>
+      </Tabs> */}
     </AppBar>
   );
 };

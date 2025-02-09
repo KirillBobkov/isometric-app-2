@@ -2,76 +2,62 @@ import { useEffect, useState } from "react";
 import { Box, Container, CssBaseline, ThemeProvider } from "@mui/material";
 import { appTheme } from "./theme.ts";
 import { Header } from "./components/Header.tsx";
-import { Feedback } from "./components/modes/Feedback.tsx";
-import { MaxMode } from "./components/modes/MaxMode.tsx";
-import { AverageMode } from "./components/modes/AverageMode.tsx";
-import { TimedMode } from "./components/modes/TimedMode.tsx";
-import { LoadMode } from "./components/modes/LoadMode.tsx";
 import { BluetoothService } from "./BluetoothService.js";
+import { Routes, Route } from "react-router-dom";
+import { ProgramList } from "./components/ProgramList.tsx";
+
+import { Feedback } from "./components/programs/Feedback.tsx";
+
+import { Promethean } from "./components/programs/Promethean.tsx";
+import { PrometheanMarkII } from "./components/programs/PrometheanMarkII.tsx";
+import { SixBySix } from "./components/programs/SixBySix.tsx";
+import { BurnCount } from "./components/programs/BurnCount.tsx";
+import { OldSchool } from "./components/programs/OldSchool.tsx";
+import { OneRepMax } from "./components/programs/OneRepMax.tsx";
+import { MilitaryPower } from "./components/programs/MilitaryPower.tsx";
+import { ThreeDaysOn } from "./components/programs/ThreeDaysOn.tsx";
+import { IronMan } from "./components/programs/IronMan.tsx";
 
 const bluetoothService = new BluetoothService();
 
 export default function App() {
-  const [selectedTab, setSelectedTab] = useState(0);
   const [connected, setConnected] = useState(false);
-  const [message, setMessage] = useState<string>('0');
+  const [message, setMessage] = useState<string>("0");
 
-    // Подключение к устройству
-    const handleConnect = async () => {
-      try {
-        const notifications$ = bluetoothService.connect();
-        // notifications$.subscribe({
-          notifications$.subscribe({
-          next: (value: any) => {
-            console.log('value', value)
-            setMessage(value);
-          },
-          error: (err: any) => {
-            console.error("Ошибка при получении данных:", err);
-          },
-        });
-      } catch (error) {
-        console.error("Ошибка подключения:", error);
-      }
-    };
-  
-    // Отключение от устройства
-    const handleDisconnect = () => {
-      bluetoothService.disconnect();
-      setConnected(false);
-    };
-    
-  const onToggleConnect = () => {
-    return !connected ? handleConnect() : handleDisconnect();
-  };
-
-    // Обновление статуса подключения
-    useEffect(() => {
-      const interval = setInterval(() => {
-        const status = bluetoothService.getStatus();
-        if (connected !== status) {
-          setConnected(status);
-        } 
-      }, 1000);
-      return () => clearInterval(interval);
-    }, [connected]);
-
-  const renderTabContent = () => {
-    switch (selectedTab) {
-      case 0: // Feedback mode
-        return <Feedback message={message} />;
-      case 1: // Max mode
-        return <MaxMode />;
-      case 2: // Average mode
-        return <AverageMode />;
-      case 3: // Timed mode
-        return <TimedMode />;
-      case 4: // Load mode
-        return <LoadMode />;
-      default:
-        return <Feedback message={message} />; // Default fallback
+  // Подключение к устройству
+  const handleConnect = async () => {
+    try {
+      const notifications$ = bluetoothService.connect();
+      notifications$.subscribe({
+        next: (value: any) => {
+          console.log("value", value);
+          setMessage(value);
+        },
+        error: (err: any) => {
+          console.error("Ошибка при получении данных:", err);
+        },
+      });
+    } catch (error) {
+      console.error("Ошибка подключения:", error);
     }
   };
+
+  // Отключение от устройства
+  const handleDisconnect = () => {
+    bluetoothService.disconnect();
+    setConnected(false);
+  };
+
+  // Обновление статуса подключения
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const status = bluetoothService.getStatus();
+      if (connected !== status) {
+        setConnected(status);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [connected]);
 
   return (
     <ThemeProvider theme={appTheme}>
@@ -79,20 +65,33 @@ export default function App() {
       <Box sx={{ flexGrow: 1 }}>
         <Header
           connected={connected}
-          onToggleConnect={onToggleConnect}
-          selectedTab={selectedTab}
-          setSelectedTab={setSelectedTab}
+          onToggleConnect={() =>
+            !connected ? handleConnect() : handleDisconnect()
+          }
         />
         <Container
           maxWidth="lg"
           sx={{
-            mt: 22,
+            mt: 20,
             mb: 4,
-            pointerEvents: connected ? "auto" : "none",
-            opacity: connected ? 1 : 0.3,
           }}
         >
-          {renderTabContent()}
+          <Routes>
+            <Route path="/promethean" element={<Promethean />} />
+
+            <Route path="/promethean-2" element={<PrometheanMarkII />} />
+            <Route path="/6x6" element={<SixBySix />} />
+            <Route
+              path="/burn-count"
+              element={<BurnCount />}
+            />
+            <Route path="/old-school" element={<OldSchool />} />
+            <Route path="/one-rep-max" element={<OneRepMax />} />
+            <Route path="/military-power" element={<MilitaryPower />} />
+            <Route path="/3-days-on" element={<ThreeDaysOn />} />
+            <Route path="/iron-man" element={<IronMan />} />
+            <Route path="*" element={<ProgramList />} />
+          </Routes>
         </Container>
       </Box>
     </ThemeProvider>
