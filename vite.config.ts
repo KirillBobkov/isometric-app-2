@@ -8,8 +8,9 @@ export default defineConfig({
     exclude: ["lucide-react"],
   },
   build: {
-    outDir: "docs", // Specify the output directory
+    outDir: "dist", // Specify the output directory
   },
+  base: "/",
   server: {
     host: "localhost",
     port: 2222,
