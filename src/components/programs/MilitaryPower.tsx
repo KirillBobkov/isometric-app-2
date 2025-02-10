@@ -12,7 +12,7 @@ export function MilitaryPower() {
   };
 
   return (
-    <Container maxWidth="lg" sx={{ py: { xs: 4, md: 1 } }}>
+    <Container maxWidth="lg" sx={{ p: 0 }}>
       {/* Главный заголовок */}
       <Typography
         variant="h3"

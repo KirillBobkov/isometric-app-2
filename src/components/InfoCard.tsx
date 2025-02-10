@@ -9,7 +9,7 @@ export const InfoCard = ({ title, content, bigTitle }: any) => {
         height: "100%",
         display: "flex",
         flexDirection: "column",
-        borderRadius: "20px",
+        borderRadius: 4,
         transition: "all 0.3s ease",
       }}
     >
