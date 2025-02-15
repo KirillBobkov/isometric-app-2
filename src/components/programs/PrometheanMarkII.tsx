@@ -49,10 +49,14 @@ export function PrometheanMarkII() {
       <Grid container spacing={4} mb={8}>
         {/* О программе */}
         <Grid item xs={12} md={6}>
-          <InfoCard
-            title="О программе"
-            content="'The Promethean Mark II' — это расширенная версия базовой программы Promethean, использующая метод двойного прогресса в режиме Timed Mode. Программа разделена на две последовательные тренировочные сессии с днём отдыха на третий день. Идеально подходит для продвинутых атлетов и спортсменов, которым требуется больше времени на восстановление."
-          />
+          <InfoCard>
+            <Typography variant="h5" align="center" sx={{ p: 2, mb: 1, fontWeight: "bold", textTransform: "uppercase" }}>
+              О программе
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              'The Promethean Mark II' — это расширенная версия базовой программы Promethean, использующая метод двойного прогресса в режиме Timed Mode. Программа разделена на две последовательные тренировочные сессии с днём отдыха на третий день. Идеально подходит для продвинутых атлетов и спортсменов, которым требуется больше времени на восстановление.
+            </Typography>
+          </InfoCard>
         </Grid>
         {/* Особенности программы */}
         <Grid item xs={12} md={6}>

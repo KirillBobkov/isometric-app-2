@@ -1,9 +1,9 @@
 import { from, fromEvent, interval } from "rxjs";
-import { map, switchMap, tap } from "rxjs/operators";
+import { map, switchMap, tap, throttleTime } from "rxjs/operators";
 
 const serviceUUID = 0xffe0;
 const serialUUID = 0xffe1;
-
+export const THROTTLE_TIME = 500;
 export class BluetoothService {
   constructor() {
     this.device = null;
@@ -44,6 +44,7 @@ export class BluetoothService {
       switchMap(() =>
         fromEvent(this.serialCharacteristic, "characteristicvaluechanged")
       ),
+      throttleTime(THROTTLE_TIME),
       map((event) => this.read(event))
     );
 
@@ -76,13 +77,5 @@ export class BluetoothService {
     const decodedValue = decoder.decode(value);
     console.log("Прочитано:", decodedValue);
     return decodedValue;
-  }
-
-  // Моковый метод для генерации случайных чисел
-  mockNotifications() {
-    return interval(400).pipe(
-      map(() => Math.floor(Math.random() * 100)), // Генерация случайного числа от 0 до 99
-      tap((randomNumber) => console.log("Моковое уведомление:", randomNumber))
-    );
   }
 }

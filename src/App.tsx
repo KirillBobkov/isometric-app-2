@@ -2,11 +2,8 @@ import { useEffect, useState } from "react";
 import { Box, Container, CssBaseline, ThemeProvider } from "@mui/material";
 import { appTheme } from "./theme.ts";
 import { Header } from "./components/Header.tsx";
-import { BluetoothService } from "./BluetoothService.js";
 import { Routes, Route } from "react-router-dom";
 import { ProgramList } from "./components/ProgramList.tsx";
-
-import { Feedback } from "./components/programs/Feedback.tsx";
 
 import { Promethean } from "./components/programs/Promethean.tsx";
 import { PrometheanMarkII } from "./components/programs/PrometheanMarkII.tsx";
@@ -17,8 +14,9 @@ import { OneRepMax } from "./components/programs/OneRepMax.tsx";
 import { MilitaryPower } from "./components/programs/MilitaryPower.tsx";
 import { ThreeDaysOn } from "./components/programs/ThreeDaysOn.tsx";
 import { IronMan } from "./components/programs/IronMan.tsx";
+import { MockBluetoothService } from "./services/MockBluetoothService.ts";
 
-const bluetoothService = new BluetoothService();
+const bluetoothService = new MockBluetoothService();
 
 export default function App() {
   const [connected, setConnected] = useState(false);
@@ -30,7 +28,7 @@ export default function App() {
       const notifications$ = bluetoothService.connect();
       notifications$.subscribe({
         next: (value: any) => {
-          console.log("value", value);
+          // console.log("value", value);
           setMessage(value);
         },
         error: (err: any) => {
@@ -87,7 +85,7 @@ export default function App() {
             />
             <Route path="/old-school" element={<OldSchool />} />
             <Route path="/one-rep-max" element={<OneRepMax />} />
-            <Route path="/military-power" element={<MilitaryPower />} />
+            <Route path="/military-power" element={<MilitaryPower connected={connected} message={message}/>} />
             <Route path="/3-days-on" element={<ThreeDaysOn />} />
             <Route path="/iron-man" element={<IronMan />} />
             <Route path="*" element={<ProgramList />} />
