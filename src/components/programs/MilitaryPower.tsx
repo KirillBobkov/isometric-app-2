@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from 'react-router-dom'; 
 import {
   Grid,
   Collapse,
@@ -23,7 +24,7 @@ import {
 import { InfoCard } from "../InfoCard";
 import { LineChart } from "@mui/x-charts";
 import { formatTime } from "../../utils/formatTime";
-import { Play, Square } from 'lucide-react';
+import { ArrowLeftIcon, Play, Square } from 'lucide-react';
 import { THROTTLE_TIME } from "../../services/BluetoothService";  
 import { motion } from 'framer-motion';
 
@@ -37,10 +38,16 @@ interface SetDataPoint {
   weight: number;
 }
 
-const REST_TIME = 20000;
+const REST_TIME = 60000;
 const SET_TIME = 10000;
 
 export function MilitaryPower({ connected, message }: any) {
+  const navigate = useNavigate(); // Получаем объект history
+
+  const handleBack = () => {
+    navigate('/');  // Перенаправляем на главную страницу
+  };
+
   // Состояние для управления видимостью блока
   const [isContentVisible, setIsContentVisible] = useState(false);
 
@@ -122,7 +129,7 @@ export function MilitaryPower({ connected, message }: any) {
 
   // Эффект для отслеживания времени подхода
   useEffect(() => {
-    if (!isTrainingActive || isResting) return;
+    if (!isTrainingActive || isResting || !connected) return;
 
     setSetTime((prev) => {
       if (prev <= THROTTLE_TIME) {
@@ -132,11 +139,11 @@ export function MilitaryPower({ connected, message }: any) {
       }
       return prev - THROTTLE_TIME;
     });
-  }, [message, isTrainingActive, isResting, currentSet]);
+  }, [message, isTrainingActive, isResting, currentSet, connected]);
 
   // useEffect для обратного отсчета во время перерыва
   useEffect(() => {
-    if (!isResting) return;
+    if (!isResting || !connected) return;
 
     if (currentSet === 10) {
       setIsTrainingActive(false);
@@ -159,7 +166,7 @@ export function MilitaryPower({ connected, message }: any) {
       }
       return prev - THROTTLE_TIME;
     });
-  }, [message, isResting]);
+  }, [message, isResting, connected, currentSet]);
 
   // Обновляем handleTrainingToggle
   const handleTrainingToggle = () => {
@@ -227,6 +234,16 @@ export function MilitaryPower({ connected, message }: any) {
 
   return (
     <Container maxWidth="lg" sx={{ p: 0 }}>
+      <Button
+        variant="text" // Прозрачная кнопка
+        color="inherit" // Цвет текста кнопки
+        onClick={handleBack}
+        sx={{ position: 'absolute', top: 90, left: 16, display: 'flex', alignItems: 'center' }} // Позиционируем кнопку
+      >
+        <ArrowLeftIcon /> {/* Иконка стрелки с отступом справа */}
+        Вернуться
+      </Button>
+
       {/* Главный заголовок */}
       <Typography
         variant="h3"

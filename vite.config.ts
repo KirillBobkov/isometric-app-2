@@ -10,7 +10,7 @@ export default defineConfig({
   build: {
     outDir: "dist", // Specify the output directory
   },
-  base: "/isometric-app-2",
+  base: "/isometric-app-2/",
   server: {
     host: "localhost",
     port: 2222,

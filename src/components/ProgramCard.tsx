@@ -18,7 +18,7 @@ export const ProgramCard = ({
     <Link
       to={path}
       style={{
-        opacity: disabled ? 0.7 : 1,
+        opacity: disabled ? 0.5 : 1,
         cursor: disabled ? "not-allowed" : "pointer",
         pointerEvents: disabled ? "none" : "all",
         textDecoration: "none",
