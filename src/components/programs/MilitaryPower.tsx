@@ -27,6 +27,7 @@ import { formatTime } from "../../utils/formatTime";
 import { ArrowLeftIcon, Play, Square } from 'lucide-react';
 import { THROTTLE_TIME } from "../../services/BluetoothService";  
 import { motion } from 'framer-motion';
+import { saveTrainingData } from "../../services/FileService";
 
 interface SetData {
   time: number;
@@ -40,6 +41,20 @@ interface SetDataPoint {
 
 const REST_TIME = 60000;
 const SET_TIME = 10000;
+
+// Добавьте эти константы
+const CIRCLE_SIZE = 200; // Размер круга
+const CIRCLE_CENTER = CIRCLE_SIZE / 2;
+const CIRCLE_RADIUS = 90; // Радиус круга
+const CIRCLE_CIRCUMFERENCE = 2 * Math.PI * CIRCLE_RADIUS;
+
+// Функция для расчета процента оставшегося времени
+const calculateProgress = (currentTime: number, totalTime: number) => {
+  // Убедимся, что значения не выходят за пределы
+  const safeCurrentTime = Math.max(0, Math.min(currentTime, totalTime));
+  const progress = 1 - (safeCurrentTime / totalTime);
+  return CIRCLE_CIRCUMFERENCE * progress;
+};
 
 export function MilitaryPower({ connected, message }: any) {
   const navigate = useNavigate(); // Получаем объект history
@@ -168,6 +183,32 @@ export function MilitaryPower({ connected, message }: any) {
     });
   }, [message, isResting, connected, currentSet]);
 
+  // Добавляем функцию для сохранения данных тренировки
+  const saveTraining = async () => {
+    if (Object.keys(chartData).length === 0) return;
+
+    const maxWeightPerSet = Object.entries(chartData).reduce((acc, [set, data]) => {
+      acc[Number(set)] = data.reduce((max, point) => Math.max(max, point.weight), 0);
+      return acc;
+    }, {} as Record<number, number>);
+
+    const trainingData = {
+      date: new Date().toISOString().split('T')[0],
+      duration: currentTime,
+      sets: chartData,
+      maxWeight: getMaxWeight(),
+      maxWeightPerSet
+    };
+
+    const saved = await saveTrainingData(trainingData);
+    if (saved) {
+      // Можно добавить уведомление об успешном сохранении
+      console.log('Данные тренировки успешно сохранены');
+    } else {
+      console.error('Ошибка при сохранении данных тренировки');
+    }
+  };
+
   // Обновляем handleTrainingToggle
   const handleTrainingToggle = () => {
     if (!connected) {
@@ -178,19 +219,27 @@ export function MilitaryPower({ connected, message }: any) {
     if (!isTrainingActive) {
       setCurrentTime(0);
       setCurrentSet(1);
-      setChartData({}); // Очищаем все данные подходов
+      setChartData({}); 
       setCurrentData([]);
       setSetTime(SET_TIME);
       setRestTime(REST_TIME);
       setIsResting(false);
       setSelectedSet(1);
     } else {
+      // Сохраняем данные при остановке тренировки
+      saveTraining();
       setCurrentTime(0);
     }
  
-      setIsTrainingActive(!isTrainingActive);
-  
+    setIsTrainingActive(!isTrainingActive);
   };
+
+  // Добавляем эффект для сохранения при завершении всех подходов
+  useEffect(() => {
+    if (currentSet === 10 && isTrainingActive) {
+      saveTraining();
+    }
+  }, [currentSet, isTrainingActive]);
 
   // Определяем данные для отображения на графике
   const getChartData = () => {
@@ -488,6 +537,7 @@ export function MilitaryPower({ connected, message }: any) {
           justifyContent: 'center', 
           alignItems: 'center',
           flexWrap: 'wrap',
+          flexDirection: 'column',
           gap: 3
         }}>
           <Button
@@ -510,34 +560,91 @@ export function MilitaryPower({ connected, message }: any) {
  
           {isTrainingActive && (
             <>
-              <Typography
-                variant="subtitle1"
+              <Box
                 sx={{
-                  color: isResting ? "text.secondary" : "text.primary",
+                  position: 'relative',
+                  width: CIRCLE_SIZE,
+                  height: CIRCLE_SIZE,
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
                 }}
               >
-                {isResting ? `Отдых` : `Подход № ${currentSet}`}
-              </Typography>
-
-              <motion.div
-                key={isResting ? formatTime(restTime) : formatTime(setTime)}
-                initial={{ opacity: 0, scale: 0.5 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.5 }}
-              >
-                <Typography
-                  variant="h1"
-                  sx={{
-                    color: isResting ? "text.secondary" : "text.primary",
-                    fontWeight: "bold",
-                    fontSize: "4rem",
+                <svg
+                  width={CIRCLE_SIZE}
+                  height={CIRCLE_SIZE}
+                  viewBox={`0 0 ${CIRCLE_SIZE} ${CIRCLE_SIZE}`}
+                  style={{
+                    position: 'absolute',
+                    transform: 'rotate(-90deg)', // Поворачиваем, чтобы начало было сверху
                   }}
                 >
-                  {isResting
-                    ? `${formatTime(restTime)}`
-                    : `${formatTime(setTime)}`}
-                </Typography>
-              </motion.div>
+                  {/* Фоновый круг */}
+                  <circle
+                    cx={CIRCLE_CENTER}
+                    cy={CIRCLE_CENTER}
+                    r={CIRCLE_RADIUS}
+                    fill="none"
+                    stroke="text.secondary"
+                    strokeWidth="8"
+                  />
+                  {/* Прогресс */}
+                  <motion.circle
+                    cx={CIRCLE_CENTER}
+                    cy={CIRCLE_CENTER}
+                    r={CIRCLE_RADIUS}
+                    fill="none"
+                    stroke={isResting ? "#9e9e9e" : "#1976d2"}
+                    strokeWidth="8"
+                    strokeDasharray={CIRCLE_CIRCUMFERENCE}
+                    strokeDashoffset={calculateProgress(
+                      isResting ? restTime : setTime,
+                      isResting ? REST_TIME : SET_TIME
+                    )}
+                    strokeLinecap="round"
+                    initial={false}
+                    animate={{
+                      strokeDashoffset: calculateProgress(
+                        isResting ? restTime : setTime,
+                        isResting ? REST_TIME : SET_TIME
+                      )
+                    }}
+                    transition={{ duration: 0.1 }}
+                  />
+                </svg>
+                
+                {/* Текст таймера в центре */}
+                <div
+                  style={{
+                    position: 'relative',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Typography
+                    variant="h1"
+                    sx={{
+                      color: isResting ? "text.secondary" : "text.primary",
+                      fontWeight: "bold",
+                      fontSize: "3.5rem",
+                      textAlign: 'center',
+                    }}
+                  >
+                    {isResting ? formatTime(restTime) : formatTime(setTime)}
+                  </Typography>
+                  <Typography
+                    variant="subtitle1"
+                    sx={{
+                      color: isResting ? "text.secondary" : "text.primary",
+                      textAlign: 'center',
+                    }}
+                  >
+                    {isResting ? "Отдых" : `Подход ${currentSet}`}
+                  </Typography>
+                </div>
+              </Box>
             </>
           )}
         </Box>
@@ -567,7 +674,7 @@ export function MilitaryPower({ connected, message }: any) {
         <Grid item xs={12} md={4}>
           <InfoCard>
             <Typography align="center" variant="body2" color="text.secondary">
-              Время тренировки
+            {isTrainingActive ? "Общее время тренировки" : "Режим обратной связи"}
             </Typography>
             <Typography variant="h1" align="center" sx={{ fontWeight: "bold" }}>
               {formatTime(currentTime)}
