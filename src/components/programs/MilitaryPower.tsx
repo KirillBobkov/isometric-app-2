@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate } from 'react-router-dom'; 
 import {
   Grid,
@@ -56,12 +56,38 @@ const calculateProgress = (currentTime: number, totalTime: number) => {
   return CIRCLE_CIRCUMFERENCE * progress;
 };
 
+// Add this custom hook before the MilitaryPower component
+const useTimer = (initialValue: number = 0) => {
+  const [time, setTime] = useState(initialValue);
+  const intervalRef = useRef<any>();
+
+  useEffect(() => {
+    intervalRef.current = setInterval(() => {
+      setTime(prev => prev + 1000);
+    }, 1000);
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, []);
+
+  const reset = useCallback(() => {
+    setTime(0);
+  }, []);
+
+  return { time, reset };
+};
+
 export function MilitaryPower({ connected, message }: any) {
   const navigate = useNavigate(); // Получаем объект history
 
   const handleBack = () => {
     navigate('/');  // Перенаправляем на главную страницу
   };
+
+  const { time: currentTime, reset: resetCurrentTime } = useTimer();
 
   // Состояние для управления видимостью блока
   const [isContentVisible, setIsContentVisible] = useState(false);
@@ -79,9 +105,6 @@ export function MilitaryPower({ connected, message }: any) {
   const [isResting, setIsResting] = useState(false);
   const [restTime, setRestTime] = useState(REST_TIME);
   const [setTime, setSetTime] = useState(SET_TIME);
-
-  const [currentTime, setCurrentTime] = useState(0);
-
     // Функция для переключения видимости блока и текста кнопки
     const toggleContentVisibility = () => {
       setIsContentVisible((prevState) => !prevState);
@@ -90,38 +113,26 @@ export function MilitaryPower({ connected, message }: any) {
   // Заменяем useEffect для currentTime и currentData на один эффект
   useEffect(() => {
     if (!connected) {
-      setCurrentTime(0);
+      resetCurrentTime();
       setCurrentData([]);
       return;
     }
 
     if (!isTrainingActive) {
-      let newTime = 0;
-      setCurrentTime(prev => {
-        newTime = prev + THROTTLE_TIME;
-        return newTime;
-      });
-
       setCurrentData(prev => {
         const newData = [...prev, {
-          time: newTime,
+          time: currentTime,
           weight: parseFloat(message),
         }];
         return newData;
       });
     }
-
-  }, [message, connected, isTrainingActive]);
+// игнорим месседж, опираемся на время
+  }, [currentTime, isTrainingActive, resetCurrentTime]);
 
   // Эффект для обновления данных графика
   useEffect(() => {
     if (!isTrainingActive || !connected) return;
-
-    let newTime = 0;
-    setCurrentTime(prev => {
-      newTime = prev + THROTTLE_TIME;
-      return newTime;
-    });
 
     if (isResting) {
       return;
@@ -130,7 +141,7 @@ export function MilitaryPower({ connected, message }: any) {
     setChartData(prev => {
       const currentSetData = prev[currentSet] || [];
       const newSetData = [...currentSetData, {
-        time: newTime,
+        time: currentTime,
         weight: parseFloat(message)
       }]
 
@@ -139,49 +150,41 @@ export function MilitaryPower({ connected, message }: any) {
         [currentSet]: newSetData
       };
     });
-  }, [message, isTrainingActive, isResting, connected, currentSet]);
+    // игнорим месседж, опираемся на время
+  }, [currentTime, isTrainingActive, isResting, connected, currentSet]);
 
 
   // Эффект для отслеживания времени подхода
   useEffect(() => {
-    if (!isTrainingActive || isResting || !connected) return;
+    if (!isTrainingActive || !connected) return;
 
-    setSetTime((prev) => {
-      if (prev <= THROTTLE_TIME) {
-        setIsResting(true);
-        setRestTime(REST_TIME);
-        return SET_TIME;
-      }
-      return prev - THROTTLE_TIME;
-    });
-  }, [message, isTrainingActive, isResting, currentSet, connected]);
+    const totalTimePerSet = SET_TIME + REST_TIME;
+    const currentSetNumber = Math.floor(currentTime / totalTimePerSet) + 1;
+    const timeWithinSet = currentTime % totalTimePerSet;
+    
+    // Обновляем номер текущего подхода
+    if (currentSetNumber !== currentSet && currentSetNumber <= 10) {
+      setCurrentSet(currentSetNumber);
+      setSelectedSet(currentSetNumber);
+    }
 
-  // useEffect для обратного отсчета во время перерыва
-  useEffect(() => {
-    if (!isResting || !connected) return;
-
-    if (currentSet === 10) {
+    // Проверяем, закончилась ли тренировка
+    if (currentSetNumber > 10) {
       setIsTrainingActive(false);
       return;
     }
 
-    setRestTime((prev) => {
-      if (prev <= THROTTLE_TIME) {
-        setIsResting(false);
-        setSetTime(SET_TIME);
-        
-        // Используем функциональную форму для обновления currentSet
-        setCurrentSet((prevSet) => {
-          const newSet = Math.min(prevSet + 1, 10);
-          setSelectedSet(newSet); // Добавляем автоматическое переключение на следующий подход
-          return newSet;
-        });
+    // Определяем, в какой фазе находимся (подход или отдых)
+    const isInRestPhase = timeWithinSet >= SET_TIME;
+    setIsResting(isInRestPhase);
 
-        return REST_TIME;
-      }
-      return prev - THROTTLE_TIME;
-    });
-  }, [message, isResting, connected, currentSet]);
+    // Обновляем оставшееся время для текущей фазы
+    if (isInRestPhase) {
+      setRestTime(totalTimePerSet - timeWithinSet);
+    } else {
+      setSetTime(SET_TIME - timeWithinSet);
+    }
+  }, [currentTime, isTrainingActive, connected, currentSet]);
 
   // Добавляем функцию для сохранения данных тренировки
   const saveTraining = async () => {
@@ -217,7 +220,7 @@ export function MilitaryPower({ connected, message }: any) {
     }
     
     if (!isTrainingActive) {
-      setCurrentTime(0);
+      resetCurrentTime();
       setCurrentSet(1);
       setChartData({}); 
       setCurrentData([]);
@@ -228,7 +231,7 @@ export function MilitaryPower({ connected, message }: any) {
     } else {
       // Сохраняем данные при остановке тренировки
       saveTraining();
-      setCurrentTime(0);
+      resetCurrentTime();
     }
  
     setIsTrainingActive(!isTrainingActive);
