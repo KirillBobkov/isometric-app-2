@@ -15,8 +15,9 @@ import { MilitaryPower } from "./components/programs/MilitaryPower.tsx";
 import { ThreeDaysOn } from "./components/programs/ThreeDaysOn.tsx";
 import { IronMan } from "./components/programs/IronMan.tsx";
 import { BluetoothService } from "./services/BluetoothService.js";
+import { MockBluetoothService } from "./services/MockBluetoothService.ts";
 
-const bluetoothService = new BluetoothService();
+const bluetoothService = new MockBluetoothService();
 
 export default function App() {
   const [connected, setConnected] = useState(false);

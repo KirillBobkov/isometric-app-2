@@ -3,7 +3,7 @@ import { map, switchMap, tap, throttleTime } from "rxjs/operators";
 
 const serviceUUID = 0xffe0;
 const serialUUID = 0xffe1;
-export const THROTTLE_TIME = 500;
+export const THROTTLE_TIME = 200;
 export class BluetoothService {
   constructor() {
     this.device = null;

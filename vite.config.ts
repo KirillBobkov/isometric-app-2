@@ -9,6 +9,8 @@ export default defineConfig({
   },
   build: {
     outDir: "dist", // Specify the output directory
+    assetsDir: 'assets',
+    copyPublicDir: true
   },
   base: "/isometric-app-2/",
   server: {
