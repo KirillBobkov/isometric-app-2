@@ -13,3 +13,5 @@ export interface TrainingType {
   exercises: Exercise[];
   imageUrl: string;
 }
+
+export type ActiveMode = 'feedback' | 'training' | 'beforeStart';

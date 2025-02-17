@@ -14,9 +14,9 @@ import { OneRepMax } from "./components/programs/OneRepMax.tsx";
 import { MilitaryPower } from "./components/programs/MilitaryPower.tsx";
 import { ThreeDaysOn } from "./components/programs/ThreeDaysOn.tsx";
 import { IronMan } from "./components/programs/IronMan.tsx";
-import { MockBluetoothService } from "./services/MockBluetoothService.ts";
+import { BluetoothService } from "./services/BluetoothService.js";
 
-const bluetoothService = new MockBluetoothService();
+const bluetoothService = new BluetoothService();
 
 export default function App() {
   const [connected, setConnected] = useState(false);

@@ -6,6 +6,11 @@ interface TrainingData {
   maxWeightPerSet: Record<number, number>;
 }
 
+interface SaveTrainingInput {
+  chartData: Record<number, Array<{time: number; weight: number}>>;
+  currentTime: number;
+}
+
 const formatTrainingDataToText = (data: TrainingData): string => {
   const date = new Date(data.date).toLocaleDateString('ru-RU', {
     year: 'numeric',
@@ -41,16 +46,43 @@ const formatTrainingDataToText = (data: TrainingData): string => {
   return text;
 };
 
-export const saveTrainingData = async (data: TrainingData) => {
+const prepareTrainingData = (input: SaveTrainingInput): TrainingData => {
+  const maxWeightPerSet = Object.entries(input.chartData).reduce((acc, [set, data]) => {
+    acc[Number(set)] = data.reduce((max, point) => Math.max(max, point.weight), 0);
+    return acc;
+  }, {} as Record<number, number>);
+
+  const maxWeight = Object.values(input.chartData)
+    .flat()
+    .reduce((max, point) => Math.max(max, point.weight), 0);
+
+  return {
+    date: new Date().toISOString().split('T')[0],
+    duration: input.currentTime,
+    sets: input.chartData,
+    maxWeight,
+    maxWeightPerSet
+  };
+};
+
+export const saveTrainingData = async (data: SaveTrainingInput) => {
   try {
-    const formattedDate = new Date(data.date).toLocaleDateString('ru-RU', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    }).replace(/\./g, '-');
+    const preparedData = prepareTrainingData({
+      chartData: data.chartData,
+      currentTime: data.currentTime
+    });
+
+    const formattedDate = new Date().toLocaleDateString(undefined, {
+  weekday: "long",
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+  hour: "numeric",
+  minute: "numeric"
+}).replace(/\./g, ',');
     
-    const fileName = `training_${formattedDate}.txt`;
-    const textContent = formatTrainingDataToText(data);
+    const fileName = `Запись тренировки ${formattedDate}.txt`;
+    const textContent = formatTrainingDataToText(preparedData);
     const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
 
     try {
