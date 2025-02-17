@@ -8,7 +8,6 @@ import { ActiveMode } from '../types/training';
 
 interface TrainingTimerProps {
   mode: ActiveMode;
-  onStop: () => void;
   isResting: boolean;
   restTime: number;
   setTime: number;
@@ -19,7 +18,6 @@ interface TrainingTimerProps {
 
 export const TrainingTimer: FC<TrainingTimerProps> = ({
   mode,
-  onStop,
   isResting,
   restTime,
   setTime,

@@ -69,6 +69,7 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
   useEffect(() => {
     if (activeMode !== ActiveMode.TRAINING || !connected) return;
 
+    // Если отдых, то не добавляем данные
     if (isResting) {
       return;
     }
@@ -311,7 +312,8 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
               setTime={setTime}
               currentSet={currentSet}
               REST_TIME={REST_TIME}
-              SET_TIME={SET_TIME}
+              SET_TIME={SET_TIME} 
+              mode={activeMode}
             />
           )}
         </Box>
