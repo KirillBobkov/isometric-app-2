@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Grid,
@@ -13,7 +13,6 @@ import {
   InputLabel,
 } from "@mui/material";
 import { InfoCard } from "../InfoCard";
-import { formatTime } from "../../utils/formatTime";
 import { ArrowLeftIcon, Play, Square } from "lucide-react";
 
 import { saveTrainingData } from "../../services/FileService";
@@ -32,7 +31,7 @@ import {
   MilitaryPowerProps,
 } from "../../types/militaryPower";
 import { Chart } from "../Chart";
-import { soundService } from "../../services/SoundService";
+import { SoundService, soundService } from "../../services/SoundService";
 
 const SET_COUNT = 10;
 
@@ -49,9 +48,13 @@ const exercises = [
 ];
 
 export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
+  const soundServiceRef = useRef<SoundService | null>(null);
+
   // Инициализируем звуки при монтировании компонента
   useEffect(() => {
-    soundService.initialize();
+    soundServiceRef.current = new SoundService();
+
+    soundServiceRef.current?.initialize();
   }, []);
 
   const navigate = useNavigate(); // Получаем объект history
@@ -139,16 +142,24 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
       });
     }
   }, [time, activeMode, connected, currentSet]);
-
   useEffect(() => {
+    // most browsers disallow autoplaying audio/video files without user action triggering it by default and your website/app should probably honor it. If you really need a sound consistently playing in browsers, figure out a way to make the user click and start it in the callback.
+    const bodyElement = document.querySelector("body");
+    if (bodyElement) {
+      bodyElement.click();
+    }
+
     if (activeMode === ActiveMode.REST) {
       soundService.play("rest");
+      return;
     }
     if (activeMode === ActiveMode.SET) {
       soundService.play("start");
+      return;
     }
     if (activeMode === ActiveMode.PREPARING) {
       soundService.play("prepare");
+      return;
     }
   }, [activeMode]);
 
@@ -170,6 +181,7 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
         });
 
         if (currentSet >= SET_COUNT) {
+          saveTraining();
           setActiveMode(ActiveMode.FEEDBACK);
           soundService.play("finish");
           return;
@@ -305,7 +317,8 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
 
   // Функция для получения максимального веса
   const getMaxWeight = () => {
-    if (activeMode !== ActiveMode.TRAINING) return 0;
+    if (activeMode !== ActiveMode.SET && activeMode !== ActiveMode.REST)
+      return 0;
 
     return Object.values(trainingData)
       .flat()
@@ -314,7 +327,8 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
 
   // Функция для получения максимального веса выбранного подхода
   const getMaxWeightForSelectedSet = () => {
-    if (activeMode !== ActiveMode.TRAINING) return 0;
+    if (activeMode !== ActiveMode.SET && activeMode !== ActiveMode.REST)
+      return 0;
 
     const setData = trainingData[selectedSet] || [];
     return setData.reduce((max, point) => Math.max(max, point.weight), 0);
@@ -539,7 +553,7 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
             >
               Максимальный вес, поднятый в текущем подходе № {selectedSet}
             </Typography>
-            <Typography      variant="h1" align="center" sx={{ fontWeight: "bold" }}>
+            <Typography variant="h1" align="center" sx={{ fontWeight: "bold" }}>
               {`${getMaxWeightForSelectedSet().toFixed(1)} кг`}
             </Typography>
           </InfoCard>
@@ -548,7 +562,12 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
         {/* Ячейка для максимального общего веса */}
         <Grid item xs={12} md={6}>
           <InfoCard>
-            <Typography   sx={{ mb: "10px" }}align="center" variant="body2" color="text.secondary">
+            <Typography
+              sx={{ mb: "10px" }}
+              align="center"
+              variant="body2"
+              color="text.secondary"
+            >
               Максимальный вес, поднятый за всю тренировку
             </Typography>
             <Typography variant="h1" align="center" sx={{ fontWeight: "bold" }}>

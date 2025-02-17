@@ -1,5 +1,5 @@
-export const REST_TIME = 60000;
-export const SET_TIME = 10000;
+export const REST_TIME = 4000;
+export const SET_TIME = 4000;
 export const PREPARE_TIME = 10000;
 
 // Circle constants

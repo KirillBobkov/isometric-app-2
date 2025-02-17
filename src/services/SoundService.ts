@@ -5,8 +5,7 @@ import startSound from '../audio/start.mp3';
 import rest1minSound from '../audio/rest1min.mp3';
 import finishSound from '../audio/finish.mp3';
 
-
-class SoundService {
+export class SoundService {
   private sounds: Map<SoundKey, HTMLAudioElement>;
   private initialized: boolean = false;
 
@@ -44,11 +43,14 @@ class SoundService {
     }
 
     const sound = this.sounds.get(key);
+
+
     if (sound) {
       try {
         sound.currentTime = 0; // Сбрасываем время воспроизведения
         await sound.play();
       } catch (error) {
+      
         console.error(`Failed to play sound ${key}:`, error);
       }
     } else {
@@ -74,5 +76,4 @@ class SoundService {
   }
 }
 
-// Создаем единственный экземпляр сервиса
-export const soundService = new SoundService(); 
+export const soundService = new SoundService();
