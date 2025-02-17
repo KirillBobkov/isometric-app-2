@@ -18,9 +18,9 @@ export const useTimer = (initialValue: number = 0) => {
     };
   }, []);
 
-  const reset = useCallback(() => {
+  const resetTime = useCallback(() => {
     setTime(0);
   }, []);
 
-  return { time, reset };
+  return { time, resetTime };
 }; 

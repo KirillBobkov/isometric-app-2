@@ -17,7 +17,7 @@ import { IronMan } from "./components/programs/IronMan.tsx";
 import { BluetoothService } from "./services/BluetoothService.js";
 import { MockBluetoothService } from "./services/MockBluetoothService.ts";
 
-const bluetoothService = new MockBluetoothService();
+const bluetoothService = new BluetoothService();
 
 export default function App() {
   const [connected, setConnected] = useState(false);

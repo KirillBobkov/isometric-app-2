@@ -4,34 +4,20 @@ import { motion } from 'framer-motion';
 import { formatTime } from '../utils/formatTime';
 import { CIRCLE_SIZE, CIRCLE_CENTER, CIRCLE_RADIUS, CIRCLE_CIRCUMFERENCE } from '../constants/militaryPower';
 import { calculateProgress } from '../utils/circleProgress';
-import { ActiveMode } from '../types/training';
 
 interface TrainingTimerProps {
-  mode: ActiveMode;
-  isResting: boolean;
-  restTime: number;
-  setTime: number;
-  currentSet: number;
-  REST_TIME: number;
-  SET_TIME: number;
+  time: number;
+  totalTime: number;
+  color: string;
 }
 
 export const TrainingTimer: FC<TrainingTimerProps> = ({
-  mode,
-  isResting,
-  restTime,
-  setTime,
-  currentSet,
-  REST_TIME,
-  SET_TIME
+  time,
+  totalTime,
+  color,
 }) => {
   return (
     <div>
-      {/* Показываем разный текст в зависимости от режима */}
-      <div>
-        {mode === 'training' && 'Тренировка'}
-        {mode === 'feedback' && 'Режим обратной связи'}
-      </div>
       <Box
         sx={{
           position: 'relative',
@@ -57,7 +43,7 @@ export const TrainingTimer: FC<TrainingTimerProps> = ({
             cy={CIRCLE_CENTER}
             r={CIRCLE_RADIUS}
             fill="none"
-            stroke="text.secondary"
+            stroke="#252525"
             strokeWidth="8"
           />
           {/* Прогресс */}
@@ -66,19 +52,19 @@ export const TrainingTimer: FC<TrainingTimerProps> = ({
             cy={CIRCLE_CENTER}
             r={CIRCLE_RADIUS}
             fill="none"
-            stroke={isResting ? "#9e9e9e" : "#1976d2"}
+            stroke={color}
             strokeWidth="8"
             strokeDasharray={CIRCLE_CIRCUMFERENCE}
             strokeDashoffset={calculateProgress(
-              isResting ? restTime : setTime,
-              isResting ? REST_TIME : SET_TIME
+              time,
+              totalTime
             )}
             strokeLinecap="round"
             initial={false}
             animate={{
               strokeDashoffset: calculateProgress(
-                isResting ? restTime : setTime,
-                isResting ? REST_TIME : SET_TIME
+              time,
+              totalTime
               )
             }}
             transition={{ duration: 0.1 }}
@@ -98,22 +84,13 @@ export const TrainingTimer: FC<TrainingTimerProps> = ({
           <Typography
             variant="h1"
             sx={{
-              color: isResting ? "text.secondary" : "text.primary",
+              color: "text.primary",
               fontWeight: "bold",
               fontSize: "3.5rem",
               textAlign: 'center',
             }}
           >
-            {isResting ? formatTime(restTime) : formatTime(setTime)}
-          </Typography>
-          <Typography
-            variant="subtitle1"
-            sx={{
-              color: isResting ? "text.secondary" : "text.primary",
-              textAlign: 'center',
-            }}
-          >
-            {isResting ? "Отдых" : `Подход ${currentSet}`}
+            {formatTime(time)}
           </Typography>
         </div>
       </Box>

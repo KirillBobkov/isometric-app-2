@@ -1,7 +1,7 @@
 export enum ActiveMode {
   FEEDBACK = 'feedback',
   TRAINING = 'training',
-  BEFORE_START = 'beforeStart'
+  PREPARING = 'preparing'
 }
 
 export interface SetData {

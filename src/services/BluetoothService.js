@@ -76,6 +76,6 @@ export class BluetoothService {
     const decoder = new TextDecoder();
     const decodedValue = decoder.decode(value);
     console.log("Прочитано:", decodedValue);
-    return decodedValue;
+    return isNaN(+decodedValue) ? 0 : +decodedValue;
   }
 }

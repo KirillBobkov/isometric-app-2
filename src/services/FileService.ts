@@ -7,8 +7,8 @@ interface TrainingData {
 }
 
 interface SaveTrainingInput {
-  chartData: Record<number, Array<{time: number; weight: number}>>;
-  currentTime: number;
+  trainingData: Record<number, Array<{time: number; weight: number}>>;
+  time: number;
 }
 
 const formatTrainingDataToText = (data: TrainingData): string => {
@@ -47,19 +47,19 @@ const formatTrainingDataToText = (data: TrainingData): string => {
 };
 
 const prepareTrainingData = (input: SaveTrainingInput): TrainingData => {
-  const maxWeightPerSet = Object.entries(input.chartData).reduce((acc, [set, data]) => {
+  const maxWeightPerSet = Object.entries(input.trainingData).reduce((acc, [set, data]) => {
     acc[Number(set)] = data.reduce((max, point) => Math.max(max, point.weight), 0);
     return acc;
   }, {} as Record<number, number>);
 
-  const maxWeight = Object.values(input.chartData)
+  const maxWeight = Object.values(input.trainingData)
     .flat()
     .reduce((max, point) => Math.max(max, point.weight), 0);
 
   return {
     date: new Date().toISOString().split('T')[0],
-    duration: input.currentTime,
-    sets: input.chartData,
+    duration: input.time,
+    sets: input.trainingData,
     maxWeight,
     maxWeightPerSet
   };
@@ -68,8 +68,8 @@ const prepareTrainingData = (input: SaveTrainingInput): TrainingData => {
 export const saveTrainingData = async (data: SaveTrainingInput) => {
   try {
     const preparedData = prepareTrainingData({
-      chartData: data.chartData,
-      currentTime: data.currentTime
+      trainingData: data.trainingData,
+      time: data.time
     });
 
     const formattedDate = new Date().toLocaleDateString(undefined, {
