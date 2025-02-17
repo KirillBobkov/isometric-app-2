@@ -7,6 +7,10 @@ import {
   Container,
   Typography,
   Box,
+  FormControl,
+  Select,
+  MenuItem,
+  InputLabel,
 } from "@mui/material";
 import { InfoCard } from "../InfoCard";
 import { formatTime } from "../../utils/formatTime";
@@ -65,6 +69,14 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
   const [restTime, setRestTime] = useState(-1);
   const [setTime, setSetTime] = useState(-1);
   const [prepareTime, setPrepareTime] = useState(-1);
+
+  const [selectedExercise, setSelectedExercise] = useState<string>('');
+
+  const exercises = [
+    { value: 'СТАНОВАЯ ТЯГА', label: 'СТАНОВАЯ ТЯГА' },
+    { value: 'ЖИМ ПЛЕЧ', label: 'ЖИМ ПЛЕЧ' },
+  ];
+
   // Функция для переключения видимости блока и текста кнопки
   const toggleContentVisibility = () =>
     setIsContentVisible((prevState) => !prevState);
@@ -201,6 +213,7 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
     const saved = await saveTrainingData({
       trainingData,
       time,
+      selectedExercise
     });
 
     if (saved) {
@@ -367,14 +380,41 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
         {/* Существующая кнопка и таймер */}
         <Box
           sx={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            flexWrap: "wrap",
-            flexDirection: "column",
-            gap: 3,
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: 2,
+            flexWrap: 'wrap',
           }}
         >
+          <FormControl 
+            sx={{ minWidth: 200 }}
+            disabled={activeMode !== ActiveMode.FEEDBACK || !connected}
+          >
+            <InputLabel id="exercise-select-label">УПРАЖНЕНИЕ</InputLabel>
+            <Select
+              labelId="exercise-select-label"
+              id="exercise-select"
+              value={selectedExercise}
+              onChange={(e) => setSelectedExercise(e.target.value)}
+              label="Упражнение"
+              sx={{
+                backgroundColor: 'background.paper',
+                borderRadius: '28px',
+                '& .MuiSelect-select': {
+                  padding: '15px 32px',
+                }
+              }}
+            >
+              <MenuItem value="">Не выбрано</MenuItem>
+              {exercises.map((exercise) => (
+                <MenuItem key={exercise.value} value={exercise.value}>
+                  {exercise.label}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
           <Button
             variant="contained"
             size="large"
@@ -387,7 +427,9 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
               )
             }
             onClick={handleTrainingToggle}
-            disabled={!connected || activeMode === ActiveMode.PREPARING}
+            disabled={!connected || 
+                      activeMode === ActiveMode.PREPARING || 
+                      !selectedExercise}
             sx={{
               borderRadius: "28px",
               padding: "12px 32px",
@@ -399,12 +441,15 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
               },
             }}
           >
-            {activeMode === ActiveMode.TRAINING
+            {activeMode === ActiveMode.TRAINING ||
+              activeMode === ActiveMode.PREPARING
               ? "Остановить тренировку"
               : "Начать тренировку"}
           </Button>
 
-          {activeMode !== ActiveMode.FEEDBACK && (
+        </Box>
+          
+        {activeMode !== ActiveMode.FEEDBACK && (
             <>
               <TrainingTimer
                 totalTime={
@@ -431,8 +476,6 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
               />
             </>
           )}
-        </Box>
-
         {/* Новое информационное сообщение */}
         <Typography
           variant="h6"
