@@ -1,6 +1,7 @@
 export enum ActiveMode {
   FEEDBACK = 'feedback',
-  TRAINING = 'training',
+  REST = 'rest',
+  SET = 'set',
   PREPARING = 'preparing'
 }
 

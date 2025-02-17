@@ -36,6 +36,18 @@ import { soundService } from "../../services/SoundService";
 
 const SET_COUNT = 10;
 
+const MODE_COLORS = {
+  [ActiveMode.PREPARING]: "rgb(25, 167, 255)", // Blue
+  [ActiveMode.SET]: "rgb(229, 67, 67)", // Red
+  [ActiveMode.REST]: "#4CAF50", // Green
+  [ActiveMode.FEEDBACK]: "rgb(25, 167, 255)", // Blue
+} as const;
+
+const exercises = [
+  { value: "СТАНОВАЯ ТЯГА", label: "СТАНОВАЯ ТЯГА" },
+  { value: "ЖИМ ПЛЕЧ", label: "ЖИМ ПЛЕЧ" },
+];
+
 export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
   // Инициализируем звуки при монтировании компонента
   useEffect(() => {
@@ -53,29 +65,25 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
   // Состояние для управления видимостью блока
   const [isContentVisible, setIsContentVisible] = useState(false);
 
-  const [currentSet, setCurrentSet] = useState(1);
-
   const [trainingData, setTrainingData] = useState<
     Record<number, SetDataPoint[]>
   >({});
   const [feedbackData, setFeedbackData] = useState<SetData[]>([]);
 
   const [selectedSet, setSelectedSet] = useState<number>(1);
+  const [currentSet, setCurrentSet] = useState(1);
 
   const [activeMode, setActiveMode] = useState<ActiveMode>(ActiveMode.FEEDBACK);
 
-  const [isResting, setIsResting] = useState(false);
+  const [selectedExercise, setSelectedExercise] = useState<string>("");
 
-  const [restTime, setRestTime] = useState(-1);
-  const [setTime, setSetTime] = useState(-1);
-  const [prepareTime, setPrepareTime] = useState(-1);
-
-  const [selectedExercise, setSelectedExercise] = useState<string>('');
-
-  const exercises = [
-    { value: 'СТАНОВАЯ ТЯГА', label: 'СТАНОВАЯ ТЯГА' },
-    { value: 'ЖИМ ПЛЕЧ', label: 'ЖИМ ПЛЕЧ' },
-  ];
+  const [counterTime, setCounterTime] = useState<{
+    remaining: number;
+    max: number;
+  }>({
+    remaining: 0,
+    max: 0,
+  });
 
   // Функция для переключения видимости блока и текста кнопки
   const toggleContentVisibility = () =>
@@ -113,11 +121,7 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
   useEffect(() => {
     if (!connected) return;
 
-    if (activeMode === ActiveMode.TRAINING) {
-      // Если отдых, то не добавляем данные
-      if (isResting) {
-        return;
-      }
+    if (activeMode === ActiveMode.SET) {
       setTrainingData((prev) => {
         const currentSetData = prev[currentSet] || [];
         const newSetData = [
@@ -134,59 +138,78 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
         };
       });
     }
-  }, [time, activeMode, isResting, connected, currentSet]);
-
-  // Эффект для отслеживания времени подхода/отдыха между подходами
-  useEffect(() => {
-    if (!connected) return;
-
-    if (activeMode === ActiveMode.TRAINING) {
-      const totalTimePerSet = SET_TIME + REST_TIME;
-      const currentSetNumber = Math.floor(time / totalTimePerSet) + 1;
-      const timeWithinSet = time % totalTimePerSet;
-
-      if (currentSetNumber !== currentSet && currentSetNumber <= SET_COUNT) {
-        setCurrentSet(currentSetNumber);
-        setSelectedSet(currentSetNumber);
-      }
-
-      // озвучка при переходе от отдыха к подходу
-      const isInRestPhase = timeWithinSet >= SET_TIME;
-
-      if (currentSetNumber === SET_COUNT && isInRestPhase) {
-        saveTraining();
-        setActiveMode(ActiveMode.FEEDBACK);
-        soundService.play("finish");
-        return;
-      }
-
-      setIsResting(isInRestPhase);
-
-      if (isInRestPhase) {
-        setRestTime(totalTimePerSet - timeWithinSet);
-      } else {
-        setSetTime(SET_TIME - timeWithinSet);
-      }
-    }
   }, [time, activeMode, connected, currentSet]);
 
   useEffect(() => {
-    if (restTime === REST_TIME) {
+    if (activeMode === ActiveMode.REST) {
       soundService.play("rest");
     }
-  }, [restTime]);
-
-  useEffect(() => {
-    if (setTime === SET_TIME) {
+    if (activeMode === ActiveMode.SET) {
       soundService.play("start");
     }
-  }, [setTime]);
-
-  useEffect(() => {
-    if (prepareTime === PREPARE_TIME) {
+    if (activeMode === ActiveMode.PREPARING) {
       soundService.play("prepare");
     }
-  }, [prepareTime]);
+  }, [activeMode]);
+
+  useEffect(() => {
+    if (!connected) return;
+
+    if (activeMode === ActiveMode.SET) {
+      const remainingSetTime = SET_TIME - time;
+      setCounterTime({
+        remaining: remainingSetTime,
+        max: SET_TIME,
+      });
+
+      // Когда время подготовки истекло
+      if (remainingSetTime <= 0) {
+        setCounterTime({
+          remaining: SET_TIME,
+          max: SET_TIME,
+        });
+
+        if (currentSet >= SET_COUNT) {
+          setActiveMode(ActiveMode.FEEDBACK);
+          soundService.play("finish");
+          return;
+        } else {
+          setActiveMode(ActiveMode.REST);
+          setCounterTime({
+            remaining: REST_TIME,
+            max: REST_TIME,
+          });
+          resetTime(); // Сбрасываем время для начала тренировки
+        }
+      }
+    }
+  }, [time, connected, activeMode, resetTime]);
+
+  useEffect(() => {
+    if (!connected) return;
+
+    if (activeMode === ActiveMode.REST) {
+      // Вычисляем оставшееся время подготовки
+      const remainingPrepareTime = REST_TIME - time;
+      setCounterTime({
+        remaining: remainingPrepareTime,
+        max: REST_TIME,
+      });
+
+      // Когда время подготовки истекло
+      if (remainingPrepareTime <= 0) {
+        setCurrentSet((prev) => prev + 1);
+        setSelectedSet((prev) => prev + 1);
+
+        setCounterTime({
+          remaining: SET_TIME,
+          max: SET_TIME,
+        });
+        setActiveMode(ActiveMode.SET);
+        resetTime(); // Сбрасываем время для начала тренировки
+      }
+    }
+  }, [time, connected, activeMode, resetTime]);
 
   // Эффект для отслеживания времени подготовки
   useEffect(() => {
@@ -195,12 +218,18 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
     if (activeMode === ActiveMode.PREPARING) {
       // Вычисляем оставшееся время подготовки
       const remainingPrepareTime = PREPARE_TIME - time;
-      setPrepareTime(remainingPrepareTime);
+      setCounterTime({
+        remaining: remainingPrepareTime,
+        max: PREPARE_TIME,
+      });
 
       // Когда время подготовки истекло
       if (remainingPrepareTime <= 0) {
-        setSetTime(SET_TIME);
-        setActiveMode(ActiveMode.TRAINING);
+        setCounterTime({
+          remaining: SET_TIME,
+          max: SET_TIME,
+        });
+        setActiveMode(ActiveMode.SET);
         resetTime(); // Сбрасываем время для начала тренировки
       }
     }
@@ -213,7 +242,7 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
     const saved = await saveTrainingData({
       trainingData,
       time,
-      selectedExercise
+      selectedExercise,
     });
 
     if (saved) {
@@ -237,14 +266,16 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
       setSelectedSet(1);
       setTrainingData({});
       setFeedbackData([]);
-      setPrepareTime(PREPARE_TIME);
-      setIsResting(false);
+      setCounterTime({
+        remaining: PREPARE_TIME,
+        max: PREPARE_TIME,
+      });
       setActiveMode(ActiveMode.PREPARING);
       return;
     }
 
     // Если режим тренировки, то сохраняем данные и переходим в режим обратной связи
-    if (activeMode === ActiveMode.TRAINING) {
+    if (activeMode === ActiveMode.SET || activeMode === ActiveMode.REST) {
       soundService.play("finish");
       saveTraining();
       resetTime();
@@ -295,14 +326,14 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
     switch (activeMode) {
       case ActiveMode.PREPARING:
         return "Приготовьтесь, тренировка сейчас начнется";
-      case ActiveMode.TRAINING:
-        return isResting
-          ? `Подход № ${currentSet} закончен, отдохните перед подходом № ${
-              currentSet + 1
-            }`
-          : "Выполняйте упражнение с максимальным усилием";
+      case ActiveMode.REST:
+        return `Подход № ${currentSet} закончен, отдохните перед подходом № ${
+          currentSet + 1
+        }`;
+      case ActiveMode.SET:
+        return "Выполняйте упражнение с максимальным усилием";
       case ActiveMode.FEEDBACK:
-        return "Если вы готовы, то нажмите на кнопку 'Начать тренировку'";
+        return "Если вы готовы, то выберите упражнение и нажмите на кнопку 'Начать тренировку'";
       default:
         return "";
     }
@@ -380,30 +411,39 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
         {/* Существующая кнопка и таймер */}
         <Box
           sx={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
             gap: 2,
-            flexWrap: 'wrap',
+            flexWrap: "wrap",
           }}
         >
-          <FormControl 
-            sx={{ minWidth: 200 }}
+          <FormControl
+            sx={{ minWidth: 250, width: "auto" }}
             disabled={activeMode !== ActiveMode.FEEDBACK || !connected}
           >
-            <InputLabel id="exercise-select-label">УПРАЖНЕНИЕ</InputLabel>
+            {selectedExercise ? (
+              <InputLabel id="exercise-select-label">
+                ТЕКУЩЕЕ УПРАЖНЕНИЕ
+              </InputLabel>
+            ) : (
+              <InputLabel id="exercise-select-label">
+                ВЫБЕРИТЕ УПРАЖНЕНИЕ
+              </InputLabel>
+            )}
             <Select
               labelId="exercise-select-label"
               id="exercise-select"
+              key={selectedExercise}
               value={selectedExercise}
               onChange={(e) => setSelectedExercise(e.target.value)}
-              label="Упражнение"
+              label="ВЫБЕРИТЕ УПРАЖНЕНИЕ"
               sx={{
-                backgroundColor: 'background.paper',
-                borderRadius: '28px',
-                '& .MuiSelect-select': {
-                  padding: '15px 32px',
-                }
+                backgroundColor: "background.paper",
+                borderRadius: "28px",
+                "& .MuiSelect-select": {
+                  padding: "15px 32px",
+                },
               }}
             >
               <MenuItem value="">Не выбрано</MenuItem>
@@ -419,7 +459,8 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
             variant="contained"
             size="large"
             startIcon={
-              activeMode === ActiveMode.TRAINING ||
+              activeMode === ActiveMode.SET ||
+              activeMode === ActiveMode.REST ||
               activeMode === ActiveMode.PREPARING ? (
                 <Square size={24} />
               ) : (
@@ -427,61 +468,44 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
               )
             }
             onClick={handleTrainingToggle}
-            disabled={!connected || 
-                      activeMode === ActiveMode.PREPARING || 
-                      !selectedExercise}
+            disabled={
+              !connected ||
+              activeMode === ActiveMode.PREPARING ||
+              !selectedExercise
+            }
             sx={{
               borderRadius: "28px",
               padding: "12px 32px",
               backgroundColor:
-                activeMode === ActiveMode.TRAINING ? "#ff4444" : "#4CAF50",
+                activeMode === ActiveMode.SET ||
+                activeMode === ActiveMode.REST ||
+                activeMode === ActiveMode.PREPARING
+                  ? "#ff4444"
+                  : "#4CAF50",
               "&:hover": {
                 backgroundColor:
-                  activeMode === ActiveMode.TRAINING ? "#ff0000" : "#45a049",
+                  activeMode === ActiveMode.SET ||
+                  activeMode === ActiveMode.REST ||
+                  activeMode === ActiveMode.PREPARING
+                    ? "#ff0000"
+                    : "#45a049",
               },
             }}
           >
-            {activeMode === ActiveMode.TRAINING ||
-              activeMode === ActiveMode.PREPARING
+            {activeMode === ActiveMode.SET ||
+            activeMode === ActiveMode.REST ||
+            activeMode === ActiveMode.PREPARING
               ? "Остановить тренировку"
               : "Начать тренировку"}
           </Button>
-
         </Box>
-          
-        {activeMode !== ActiveMode.FEEDBACK && (
-            <>
-              <TrainingTimer
-                totalTime={
-                  activeMode === ActiveMode.TRAINING
-                    ? isResting
-                      ? REST_TIME
-                      : SET_TIME
-                    : PREPARE_TIME
-                }
-                time={
-                  activeMode === ActiveMode.TRAINING
-                    ? isResting
-                      ? restTime
-                      : setTime
-                    : prepareTime
-                }
-                color={
-                  activeMode === ActiveMode.TRAINING
-                    ? isResting
-                      ? "#4CAF50"
-                      : "rgb(229, 67, 67)"
-                    : "rgb(25, 167, 255)"
-                }
-              />
-            </>
-          )}
         {/* Новое информационное сообщение */}
         <Typography
-          variant="h6"
+          variant="body1"
           sx={{
-            color: "text.primary",
+            color: "text.secondary",
             textAlign: "center",
+            fontSize: "20px",
             maxWidth: "600px",
             padding: "8px 16px",
             borderRadius: "8px",
@@ -491,40 +515,41 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
         >
           {getStatusMessage()}
         </Typography>
+
+        {activeMode !== ActiveMode.FEEDBACK && (
+          <>
+            <TrainingTimer
+              totalTime={counterTime.max}
+              time={counterTime.remaining}
+              color={MODE_COLORS[activeMode]}
+            />
+          </>
+        )}
       </Box>
 
       <Grid container spacing={4} mb={4}>
-        {/* Первая ячейка: Текущее время */}
-        <Grid item xs={12} md={4}>
-          <InfoCard>
-            <Typography align="center" variant="body2" color="text.secondary">
-              {activeMode === ActiveMode.TRAINING
-                ? "Общее время тренировки"
-                : "Режим обратной связи"}
-            </Typography>
-            <Typography variant="h1" align="center" sx={{ fontWeight: "bold" }}>
-              {formatTime(time)}
-            </Typography>
-          </InfoCard>
-        </Grid>
-
         {/* Ячейка для максимального веса выбранного подхода */}
-        <Grid item xs={12} md={4}>
+        <Grid item xs={12} md={6}>
           <InfoCard>
-            <Typography align="center" variant="body2" color="text.secondary">
-              Максимальный вес в подходе № {selectedSet}
+            <Typography
+              sx={{ mb: "10px" }}
+              align="center"
+              variant="body2"
+              color="text.secondary"
+            >
+              Максимальный вес, поднятый в текущем подходе № {selectedSet}
             </Typography>
-            <Typography variant="h1" align="center" sx={{ fontWeight: "bold" }}>
+            <Typography      variant="h1" align="center" sx={{ fontWeight: "bold" }}>
               {`${getMaxWeightForSelectedSet().toFixed(1)} кг`}
             </Typography>
           </InfoCard>
         </Grid>
 
         {/* Ячейка для максимального общего веса */}
-        <Grid item xs={12} md={4}>
+        <Grid item xs={12} md={6}>
           <InfoCard>
-            <Typography align="center" variant="body2" color="text.secondary">
-              Максимальный вес за всю тренировку
+            <Typography   sx={{ mb: "10px" }}align="center" variant="body2" color="text.secondary">
+              Максимальный вес, поднятый за всю тренировку
             </Typography>
             <Typography variant="h1" align="center" sx={{ fontWeight: "bold" }}>
               {`${getMaxWeight().toFixed(1)} кг`}
@@ -538,7 +563,9 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
           xAxis={xAxis}
           yAxis={yAxis}
           title={title}
-          isTrainingActive={activeMode === ActiveMode.TRAINING}
+          isTrainingActive={
+            activeMode === ActiveMode.SET || activeMode === ActiveMode.REST
+          }
           selectedSet={selectedSet}
           onSetChange={setSelectedSet}
         />
