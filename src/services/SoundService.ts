@@ -1,10 +1,11 @@
-type SoundKey = 'prepare' | 'start' | 'rest' | 'finish';
+type SoundKey = 'prepare' | 'start' | 'rest' | 'finish' | 'connect' | 'disconnect';
 
 import beforeStartTrainingSound from '../audio/beforeStartTraining.mp3';
 import startSound from '../audio/start.mp3';
 import rest1minSound from '../audio/rest1min.mp3';
+import connectSound from '../audio/connect.mp3';
 import finishSound from '../audio/finish.mp3';
-
+import disconnectSound from '../audio/disconnect.mp3';
 export class SoundService {
   private sounds: Map<SoundKey, HTMLAudioElement>;
   private initialized: boolean = false;
@@ -21,7 +22,9 @@ export class SoundService {
       prepare: beforeStartTrainingSound,  // Сигнал подготовки
       start: startSound,      // Сигнал начала подхода
       rest: rest1minSound,        // Сигнал отдыха
-      finish: finishSound     // Сигнал окончания тренировки
+      finish: finishSound,   // Сигнал окончания тренировки
+      connect: connectSound,
+      disconnect: disconnectSound
     };
 
     try {

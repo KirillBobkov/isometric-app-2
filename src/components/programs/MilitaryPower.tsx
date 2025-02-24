@@ -31,7 +31,7 @@ import {
   MilitaryPowerProps,
 } from "../../types/militaryPower";
 import { Chart } from "../Chart";
-import { SoundService, soundService } from "../../services/SoundService";
+import { soundService } from "../../services/SoundService";
 
 const SET_COUNT = 10;
 
@@ -48,14 +48,6 @@ const exercises = [
 ];
 
 export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
-  const soundServiceRef = useRef<SoundService | null>(null);
-
-  // Инициализируем звуки при монтировании компонента
-  useEffect(() => {
-    soundServiceRef.current = new SoundService();
-
-    soundServiceRef.current?.initialize();
-  }, []);
 
   const navigate = useNavigate(); // Получаем объект history
 
@@ -95,6 +87,7 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
   // Эффект для обновления данных во время обратной связи
   useEffect(() => {
     if (!connected) {
+      setFeedbackData([]);
       return;
     }
 
@@ -112,17 +105,19 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
     }
   }, [time, activeMode, connected, resetTime]);
 
-  // Эффект для обновления данных во время  подготовки
-  useEffect(() => {
-    if (!connected) {
-      setFeedbackData([]);
-      return;
-    }
-  }, [time, activeMode, connected, resetTime]);
-
   // Эффект для обновления данных во время тренировки
   useEffect(() => {
-    if (!connected) return;
+    if (!connected) {
+      resetTime();
+      setCurrentSet(1);
+      setSelectedSet(1);
+      setTrainingData({});
+      setCounterTime({
+        remaining: 0,
+        max: 0,
+      });
+      setActiveMode(ActiveMode.FEEDBACK);
+    };
 
     if (activeMode === ActiveMode.SET) {
       setTrainingData((prev) => {
@@ -142,6 +137,8 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
       });
     }
   }, [time, activeMode, connected, currentSet]);
+
+
   useEffect(() => {
     // most browsers disallow autoplaying audio/video files without user action triggering it by default and your website/app should probably honor it. If you really need a sound consistently playing in browsers, figure out a way to make the user click and start it in the callback.
     const bodyElement = document.querySelector("body");

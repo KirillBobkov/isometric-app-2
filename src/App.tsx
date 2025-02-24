@@ -16,8 +16,9 @@ import { ThreeDaysOn } from "./components/programs/ThreeDaysOn.tsx";
 import { IronMan } from "./components/programs/IronMan.tsx";
 import { BluetoothService } from "./services/BluetoothService.js";
 import { MockBluetoothService } from "./services/MockBluetoothService.ts";
+import { soundService } from "./services/SoundService.ts";
 
-const bluetoothService = new BluetoothService();
+const bluetoothService = new MockBluetoothService();
 
 export default function App() {
   const [connected, setConnected] = useState(false);
@@ -44,7 +45,6 @@ export default function App() {
   // Отключение от устройства
   const handleDisconnect = () => {
     bluetoothService.disconnect();
-    setConnected(false);
   };
 
   // Обновление статуса подключения
@@ -53,6 +53,12 @@ export default function App() {
       const status = bluetoothService.getStatus();
       if (connected !== status) {
         setConnected(status);
+        const bodyElement = document.querySelector("body");
+        if (bodyElement) {
+          bodyElement.click();
+        }
+
+        soundService.play(status ? 'connect' : 'disconnect');
       }
     }, 1000);
     return () => clearInterval(interval);
