@@ -29,11 +29,33 @@ export class SoundService {
 
     try {
       for (const [key, path] of Object.entries(soundFiles)) {
+        console.log(`Initializing sound: ${key}, path:`, path);
         const audio = new Audio(path);
-        await audio.load(); // Предзагружаем аудио
+        
+        // Создаем Promise, который разрешится, когда метаданные будут загружены
+        await new Promise((resolve, reject) => {
+          audio.addEventListener('loadedmetadata', () => {
+            console.log(`Sound ${key} loaded with duration:`, audio.duration);
+            resolve(audio);
+          });
+          audio.addEventListener('error', (e) => {
+            reject(new Error(`Failed to load sound ${key}: ${e.message}`));
+          });
+          audio.load();
+        });
+
         this.sounds.set(key as SoundKey, audio);
+        console.log(`Sound ${key} loaded successfully`);
       }
+      
       this.initialized = true;
+      
+      // Выводим информацию о всех загруженных звуках
+      console.log('All loaded sounds:', Array.from(this.sounds.entries()).map(([key, audio]) => ({
+        key,
+        duration: audio.duration,
+        src: audio.src
+      })));
     } catch (error) {
       console.error('Failed to initialize sounds:', error);
     }
@@ -47,14 +69,21 @@ export class SoundService {
 
     const sound = this.sounds.get(key);
 
-
+    console.log("Playing sound:", key);
     if (sound) {
       try {
         sound.currentTime = 0; // Сбрасываем время воспроизведения
-        await sound.play();
+        await sound.play().catch(error => {
+          console.error(`Failed to play sound ${key}. Error details:`, {
+            name: error.name,
+            message: error.message,
+            sound: sound.src
+          });
+          throw error; // Пробрасываем ошибку дальше
+        });
       } catch (error) {
-      
         console.error(`Failed to play sound ${key}:`, error);
+        throw error; // Пробрасываем ошибку для обработки в компоненте
       }
     } else {
       console.warn(`Sound ${key} not found`);

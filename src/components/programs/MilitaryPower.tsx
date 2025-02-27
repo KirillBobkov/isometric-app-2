@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Grid,
@@ -48,7 +48,6 @@ const exercises = [
 ];
 
 export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
-
   const navigate = useNavigate(); // Получаем объект history
 
   const handleBack = () => {
@@ -56,6 +55,10 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
   };
 
   const { time, resetTime } = useTimer();
+
+  useEffect(() => {
+    soundService.initialize();
+  }, []);
 
   // Состояние для управления видимостью блока
   const [isContentVisible, setIsContentVisible] = useState(false);
@@ -117,7 +120,7 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
         max: 0,
       });
       setActiveMode(ActiveMode.FEEDBACK);
-    };
+    }
 
     if (activeMode === ActiveMode.SET) {
       setTrainingData((prev) => {
@@ -126,7 +129,7 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
           ...currentSetData,
           {
             time,
-            weight: parseFloat(message),
+            weight: parseFloat(message),  
           },
         ];
 
@@ -138,27 +141,25 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
     }
   }, [time, activeMode, connected, currentSet]);
 
+  const playSound = useCallback(async (soundKey: any) => {
+    try {
+      await soundService.play(soundKey) ;
+    } catch (err) {
+      console.warn(`Could not play ${soundKey} sound:`, err);
+    }
+  }, []);
 
   useEffect(() => {
-    // most browsers disallow autoplaying audio/video files without user action triggering it by default and your website/app should probably honor it. If you really need a sound consistently playing in browsers, figure out a way to make the user click and start it in the callback.
-    const bodyElement = document.querySelector("body");
-    if (bodyElement) {
-      bodyElement.click();
-    }
-
     if (activeMode === ActiveMode.REST) {
-      soundService.play("rest");
-      return;
+      playSound("rest");
+    } else if (activeMode === ActiveMode.SET) {
+      playSound("start");
+    } else if (activeMode === ActiveMode.PREPARING) {
+      playSound("prepare");
+    } else if (activeMode === ActiveMode.FEEDBACK && currentSet > 1) {
+      playSound("finish");
     }
-    if (activeMode === ActiveMode.SET) {
-      soundService.play("start");
-      return;
-    }
-    if (activeMode === ActiveMode.PREPARING) {
-      soundService.play("prepare");
-      return;
-    }
-  }, [activeMode]);
+  }, [activeMode, currentSet, playSound]);
 
   useEffect(() => {
     if (!connected) return;
@@ -172,11 +173,6 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
 
       // Когда время подготовки истекло
       if (remainingSetTime <= 0) {
-        setCounterTime({
-          remaining: SET_TIME,
-          max: SET_TIME,
-        });
-
         if (currentSet >= SET_COUNT) {
           saveTraining();
           setActiveMode(ActiveMode.FEEDBACK);
@@ -192,10 +188,6 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
         }
       }
     }
-  }, [time, connected, activeMode, resetTime]);
-
-  useEffect(() => {
-    if (!connected) return;
 
     if (activeMode === ActiveMode.REST) {
       // Вычисляем оставшееся время подготовки
@@ -207,23 +199,18 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
 
       // Когда время подготовки истекло
       if (remainingPrepareTime <= 0) {
-        setCurrentSet((prev) => prev + 1);
-        setSelectedSet((prev) => prev + 1);
-
+        setActiveMode(ActiveMode.SET);
         setCounterTime({
           remaining: SET_TIME,
           max: SET_TIME,
         });
-        setActiveMode(ActiveMode.SET);
         resetTime(); // Сбрасываем время для начала тренировки
+        setCurrentSet((prev) => prev + 1);
+        setSelectedSet((prev) => prev + 1);
       }
     }
-  }, [time, connected, activeMode, resetTime]);
 
-  // Эффект для отслеживания времени подготовки
-  useEffect(() => {
-    if (!connected) return;
-
+    
     if (activeMode === ActiveMode.PREPARING) {
       // Вычисляем оставшееся время подготовки
       const remainingPrepareTime = PREPARE_TIME - time;
@@ -285,7 +272,6 @@ export function MilitaryPower({ connected, message }: MilitaryPowerProps) {
 
     // Если режим тренировки, то сохраняем данные и переходим в режим обратной связи
     if (activeMode === ActiveMode.SET || activeMode === ActiveMode.REST) {
-      soundService.play("finish");
       saveTraining();
       resetTime();
       setActiveMode(ActiveMode.FEEDBACK);
