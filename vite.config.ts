@@ -12,7 +12,6 @@ export default defineConfig({
     assetsDir: 'assets',
     copyPublicDir: true
   },
-  base: "/isometric-app-2/",
   server: {
     host: "localhost",
     port: 2222,
