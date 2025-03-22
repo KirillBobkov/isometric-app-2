@@ -103,8 +103,9 @@ export function Chart({
           slotProps={{
             legend: {
               hidden: true
-            }
+            },
           }}
+          // noDataOverlay={<Typography variant="h6">Нет данных</Typography>}
         />
       </CardContent>
     </Card>

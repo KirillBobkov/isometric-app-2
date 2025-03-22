@@ -11,12 +11,13 @@ import { SixBySix } from "./components/programs/SixBySix.tsx";
 import { BurnCount } from "./components/programs/BurnCount.tsx";
 import { OldSchool } from "./components/programs/OldSchool.tsx";
 import { OneRepMax } from "./components/programs/OneRepMax.tsx";
-import { MilitaryPower } from "./components/programs/MilitaryPower.tsx";
+
 import { ThreeDaysOn } from "./components/programs/ThreeDaysOn.tsx";
 import { IronMan } from "./components/programs/IronMan.tsx";
-import { BluetoothService } from "./services/BluetoothService.js";
 import { MockBluetoothService } from "./services/MockBluetoothService.ts";
+import { BluetoothService } from "./services/BluetoothService.js";
 import { soundService } from "./services/SoundService.ts";
+import { MilitaryPower } from "./components/programs/MilitaryPower/index.tsx";
 
 const bluetoothService = new BluetoothService();
 

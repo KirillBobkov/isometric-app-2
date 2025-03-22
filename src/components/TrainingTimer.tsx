@@ -2,8 +2,9 @@ import { FC } from 'react';
 import { Box, Typography } from '@mui/material';
 import { motion } from 'framer-motion';
 import { formatTime } from '../utils/formatTime';
-import { CIRCLE_SIZE, CIRCLE_CENTER, CIRCLE_RADIUS, CIRCLE_CIRCUMFERENCE } from '../constants/militaryPower';
 import { calculateProgress } from '../utils/circleProgress';
+// Circle constants
+import { CIRCLE_SIZE, CIRCLE_CENTER, CIRCLE_RADIUS, CIRCLE_CIRCUMFERENCE } from '../utils/circleProgress';
 
 interface TrainingTimerProps {
   time: number;
