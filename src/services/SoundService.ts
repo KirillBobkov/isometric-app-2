@@ -7,8 +7,9 @@ import connectSound from '../audio/connect.mp3';
 import finishSound from '../audio/finish.mp3';
 import disconnectSound from '../audio/disconnect.mp3';
 export class SoundService {
-  private sounds: Map<SoundKey, HTMLAudioElement>;
+  private sounds: Map<SoundKey, HTMLAudioElement> = new Map();
   private initialized: boolean = false;
+  private isPlaying: boolean = false;
 
   constructor() {
     this.sounds = new Map();
@@ -19,43 +20,25 @@ export class SoundService {
     if (this.initialized) return;
 
     const soundFiles: Record<SoundKey, string> = {
-      prepare: beforeStartTrainingSound,  // Сигнал подготовки
-      start: startSound,      // Сигнал начала подхода
-      rest: rest1minSound,        // Сигнал отдыха
-      finish: finishSound,   // Сигнал окончания тренировки
+      prepare: beforeStartTrainingSound,
+      start: startSound,
+      rest: rest1minSound,
+      finish: finishSound,
       connect: connectSound,
       disconnect: disconnectSound
     };
 
     try {
       for (const [key, path] of Object.entries(soundFiles)) {
-        console.log(`Initializing sound: ${key}, path:`, path);
         const audio = new Audio(path);
-        
-        // Создаем Promise, который разрешится, когда метаданные будут загружены
         await new Promise((resolve, reject) => {
-          audio.addEventListener('loadedmetadata', () => {
-            console.log(`Sound ${key} loaded with duration:`, audio.duration);
-            resolve(audio);
-          });
-          audio.addEventListener('error', (e) => {
-            reject(new Error(`Failed to load sound ${key}: ${e.message}`));
-          });
+          audio.addEventListener('loadedmetadata', resolve);
+          audio.addEventListener('error', reject);
           audio.load();
         });
-
         this.sounds.set(key as SoundKey, audio);
-        console.log(`Sound ${key} loaded successfully`);
       }
-      
       this.initialized = true;
-      
-      // Выводим информацию о всех загруженных звуках
-      console.log('All loaded sounds:', Array.from(this.sounds.entries()).map(([key, audio]) => ({
-        key,
-        duration: audio.duration,
-        src: audio.src
-      })));
     } catch (error) {
       console.error('Failed to initialize sounds:', error);
     }
@@ -67,26 +50,26 @@ export class SoundService {
       await this.initialize();
     }
 
-    const sound = this.sounds.get(key);
+    // Если уже что-то воспроизводится, ждем завершения
+    while (this.isPlaying) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
 
-    console.log("Playing sound:", key);
+    const sound = this.sounds.get(key);
     if (sound) {
       try {
-        sound.currentTime = 0; // Сбрасываем время воспроизведения
-        await sound.play().catch(error => {
-          console.error(`Failed to play sound ${key}. Error details:`, {
-            name: error.name,
-            message: error.message,
-            sound: sound.src
-          });
-          throw error; // Пробрасываем ошибку дальше
+        this.isPlaying = true;
+        sound.currentTime = 0;
+        await sound.play();
+        // Ждем окончания воспроизведения
+        await new Promise(resolve => {
+          sound.addEventListener('ended', resolve, { once: true });
         });
       } catch (error) {
         console.error(`Failed to play sound ${key}:`, error);
-        throw error; // Пробрасываем ошибку для обработки в компоненте
+      } finally {
+        this.isPlaying = false;
       }
-    } else {
-      console.warn(`Sound ${key} not found`);
     }
   }
 

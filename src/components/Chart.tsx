@@ -98,14 +98,13 @@ export function Chart({
               showMark: false,
             },
           ]}
-          height={500}
+          height={400}
           margin={{ top: 10, right: 30, bottom: 40, left: 50 }}
           slotProps={{
             legend: {
               hidden: true
             },
           }}
-          // noDataOverlay={<Typography variant="h6">Нет данных</Typography>}
         />
       </CardContent>
     </Card>

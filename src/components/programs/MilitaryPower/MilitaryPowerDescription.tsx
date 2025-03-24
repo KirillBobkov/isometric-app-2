@@ -13,7 +13,7 @@ import {
   TableBody,
   Paper
 } from "@mui/material";
-import { InfoCard } from '../../../InfoCard';
+import { InfoCard } from '../../InfoCard';
 
 export function MilitaryPowerDescription() {
   const [isContentVisible, setIsContentVisible] = useState(false);

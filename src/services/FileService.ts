@@ -1,9 +1,12 @@
+import { formatTime } from "../utils/formatTime";
+
 interface TrainingData {
   date: string;
   sets: Record<number, Array<{ time: number; weight: number }>>;
   maxWeight: number;
   maxWeightPerSet: Record<number, number>;
   selectedExercise: string;
+  time: number;
 }
 
 interface SaveTrainingInput {
@@ -24,6 +27,7 @@ const formatTrainingDataToText = (data: TrainingData): string => {
   let text = `Отчет о тренировке "Солдатская мощь" - "${data.selectedExercise}"\n`;
 
   text += `Дата: ${date} ${currentTime}\n`;
+  text += `Время тренировки: ${formatTime(data.time)}\n`;
   text += `Максимальный вес за тренировку: ${data.maxWeight.toFixed(1)} кг\n\n`;
   text += `Результаты по подходам:\n`;
   text += `==========================================\n\n`;
@@ -31,7 +35,7 @@ const formatTrainingDataToText = (data: TrainingData): string => {
   Object.entries(data.sets).forEach(([setNumber, setData]) => {
     const setMaxWeight = data.maxWeightPerSet[Number(setNumber)];
     text += `\nПодход №${setNumber}\n`;
-    text += `------------------------------------------\n`;
+    text += `-------\n`;
     text += `Максимальный вес: ${setMaxWeight.toFixed(1)} кг\n`;
   });
 
@@ -68,6 +72,7 @@ const prepareTrainingData = (input: SaveTrainingInput): TrainingData => {
     maxWeight,
     maxWeightPerSet,
     selectedExercise: input.selectedExercise,
+    time: input.time,
   };
 };
 

@@ -1,11 +1,11 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Grid, Button, Container, Typography, Box } from "@mui/material";
-import { ArrowLeftIcon } from "lucide-react";
+import { ArrowLeftIcon, Play, Square } from "lucide-react";
 
 import { saveTrainingData } from "../../../services/FileService";
 import { useTimer } from "../../../hooks/useTimer";
-import { MilitaryPowerDescription } from "./components/MilitaryPowerDescription";
+import { MilitaryPowerDescription } from "./MilitaryPowerDescription";
 import { TrainingTimer } from "../../TrainingTimer";
 import {
   ActiveMode,
@@ -17,7 +17,6 @@ import { soundService } from "../../../services/SoundService";
 import { usePrevious } from "../../../hooks/usePrevious";
 import { getStatusMessage } from "../../../utils/statusMessages";
 import { ExerciseSelect } from "../../common/ExerciseSelect";
-import { TrainingControlButton } from "../../common/TrainingControlButton";
 import { StatusMessage } from "../../common/StatusMessage";
 import { MetricCard } from "../../common/MetricCard";
 import { formatTime } from "../../../utils/formatTime";
@@ -26,6 +25,7 @@ const SET_COUNT = 10;
 export const REST_TIME = 60000;
 export const SET_TIME = 10000;
 export const PREPARE_TIME = 10000;
+export const FEEDBACK_TIME = 31536000000;
 
 const MODE_COLORS: Record<ActiveMode, string> = {
   [ActiveMode.PREPARING]: "rgb(25, 167, 255)", // Blue
@@ -80,10 +80,12 @@ export function MilitaryPower({
   }, []);
 
   // Сохранение тренировки
-  const saveTraining = async () => {
+  const saveTraining = async (type: "normal" | "emergency" = "normal") => {
     if (Object.keys(trainingData).length === 0) return;
 
-    await soundService.play("finish");
+    if (type === "normal") {
+      await soundService.play("finish");
+    }
 
     const saved = await saveTrainingData({
       trainingData,
@@ -131,7 +133,7 @@ export function MilitaryPower({
       setModeTimeline({
         mode: ActiveMode.FEEDBACK,
         startTime: time,
-        endTime: time + 31536000000, // 1 год в миллисекундах (365 дней * 24 часа * 60 минут * 60 секунд * 1000)
+        endTime: time + FEEDBACK_TIME,
       });
       return;
     }
@@ -158,8 +160,7 @@ export function MilitaryPower({
 
   // Получение данных для графика
   const getChartData = () => {
-    const setIndex = set.selected;
-    const data = trainingData[setIndex] || [];
+    const data = trainingData[set.selected] || [];
     const limitedData = data.slice(-50);
 
     return {
@@ -200,7 +201,7 @@ export function MilitaryPower({
     setModeTimeline({
       mode: ActiveMode.FEEDBACK,
       startTime: 0,
-      endTime: Date.now() + 31536000000,
+      endTime: time + FEEDBACK_TIME,
     });
   }
 
@@ -222,9 +223,8 @@ export function MilitaryPower({
         ],
       }));
     }
-
     // Обработка перехода между режимами
-    if (time >= modeTimeline.endTime) {
+    if (time >= modeTimeline.endTime && connected) {
       switch (modeTimeline.mode) {
         case ActiveMode.PREPARING:
           setModeTimeline({
@@ -236,12 +236,12 @@ export function MilitaryPower({
 
         case ActiveMode.SET:
           if (set.current >= SET_COUNT) {
-            saveTraining();
             setModeTimeline({
               mode: ActiveMode.FEEDBACK,
               startTime: time,
-              endTime: time,
+              endTime: time + FEEDBACK_TIME,
             });
+            saveTraining();
           } else {
             setModeTimeline({
               mode: ActiveMode.REST,
@@ -271,7 +271,7 @@ export function MilitaryPower({
   }
 
   return (
-    <Container maxWidth="lg" sx={{ p: 0 }}> 
+    <Container maxWidth="lg" sx={{ p: 0 }}>
       <Button
         variant="text"
         color="inherit"
@@ -327,15 +327,41 @@ export function MilitaryPower({
             exercises={exercises}
           />
 
-          <TrainingControlButton
-            isActive={modeTimeline.mode !== ActiveMode.FEEDBACK}
+          <Button
+            variant="contained"
+            size="large"
+            startIcon={
+              modeTimeline.mode !== ActiveMode.FEEDBACK ? (
+                <Square size={24} />
+              ) : (
+                <Play size={24} />
+              )
+            }
+            onClick={handleTrainingToggle}
             disabled={
               !connected ||
               modeTimeline.mode === ActiveMode.PREPARING ||
               !selectedExercise
             }
-            onClick={handleTrainingToggle}
-          />
+            sx={{
+              borderRadius: "28px",
+              padding: "12px 32px",
+              backgroundColor:
+                modeTimeline.mode !== ActiveMode.FEEDBACK
+                  ? "#ff4444"
+                  : "#4CAF50",
+              "&:hover": {
+                backgroundColor:
+                  modeTimeline.mode !== ActiveMode.FEEDBACK
+                    ? "#ff0000"
+                    : "#45a049",
+              },
+            }}
+          >
+            {modeTimeline.mode !== ActiveMode.FEEDBACK
+              ? "Остановить тренировку"
+              : "Начать тренировку"}
+          </Button>
         </Box>
 
         <StatusMessage

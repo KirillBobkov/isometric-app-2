@@ -9,7 +9,7 @@ import {
   Tooltip,
   Box,
 } from "@mui/material";
-import { Dumbbell, Bluetooth } from "lucide-react";
+import { Dumbbell, Bluetooth, HelpCircle } from "lucide-react";
 import chromeImg from '../images/chrome.png';
 import React from "react";
 
@@ -26,45 +26,68 @@ export const Header = ({ connected, onToggleConnect }: any) => {
       <Toolbar
         sx={{ padding: 2, display: "flex", justifyContent: "space-between" }}
       >
-        <Dumbbell
-          size={32}
-          style={{ marginRight: "12px", color: theme.palette.primary.main }}
-        />
-        {!mobile ? (
-          <Typography
-            variant={"h5"}
-            component="div"
-            sx={{ flexGrow: 1, fontWeight: "800" }}
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <Dumbbell
+            size={32}
+            style={{ marginRight: "12px", color: theme.palette.primary.main }}
+          />
+          {!mobile ? (
+            <Typography
+              variant={"h5"}
+              component="div"
+              sx={{ fontWeight: "800" }}
+            >
+              Изометрический тренинг
+            </Typography>
+          ) : null}
+        </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Tooltip
+            placement="bottom-end"
+            enterTouchDelay={0}
+            leaveTouchDelay={5000}
+            componentsProps={{
+              tooltip: {
+                sx: {
+                  maxWidth: '700px',
+                  '& .MuiTooltip-tooltip': {
+                    width: '700px',
+                    padding: 0,
+                  }
+                }
+              }
+            }}
+            title={
+              <Box sx={{ p: 1 }}>
+                <Typography sx={{ mb: 2}} variant="body2">
+                   Если при клике на кнопку у вас не появляется окно подключения к устроствам BLuetooth:
+                   <br/>
+                   <br/>
+                   1) Откройте страницу <b  style={{color: "#6bc2ff"}}>chrome://flags</b> в браузерной строке  <br/>
+                   2) Включите настройку <b  style={{color: "#6bc2ff"}}>Web Bluetooth confirm pairing support</b> и установите значение <b style={{color: "#6bc2ff"}}>Enabled</b>
+                   <br/>
+                   <br/>
+                   Эта настройка позволяет подключаться к устройствам Bluetooth из браузера. 
+                         <br/>
+                               <br/>
+                   Если хотите подключиться к через смартфон, то используте браузер <b  style={{color: "#6bc2ff"}}>Bluefy</b> (или любой другой с поддержкой Bluetooth Low Energy)
+                </Typography>
+                <img
+                  src={chromeImg}
+                  alt="Bluetooth Connection"
+                  style={{
+                    width: "100%",
+                    height: "auto",
+                    marginBottom: "8px",
+                  }}
+                />
+              </Box>
+            }
           >
-            Изометрический тренинг
-          </Typography>
-        ) : null}
-        <Tooltip
-          placement="bottom-end"
-          title={
-            <Box sx={{ p: 1 }}>
-                    <Typography sx={{ mb: 2}} variant="body2">
-               Если при клике на кнопку у вас не появляется окно подключения к устроствам BLuetooth:
-               <br/>
-               <br/>
-               1) Откройте страницу <b>chrome://flags</b> в браузерной строке  <br/>
-               2) Включите настройку <b>Web Bluetooth confirm pairing support</b>
-               <br/>
-               <br/>
-               Эта настройка позволяет подключаться к устройствам Bluetooth из браузера.
-              </Typography>
-              <img
-                src={chromeImg}
-                alt="Bluetooth Connection"
-                style={{
-                  width: "500px",
-                  height: "auto",
-                  marginBottom: "8px",
-                }}
-              />
+            <Box>
+              <HelpCircle size={30} style={{ color: theme.palette.text.secondary, cursor: 'help' }} />
             </Box>
-          }
-        >
+          </Tooltip>
           <Button
             startIcon={<Bluetooth size={20} />}
             onClick={() => onToggleConnect()}
@@ -82,42 +105,8 @@ export const Header = ({ connected, onToggleConnect }: any) => {
           >
             {connected ? "Подключено" : "Подключить"}
           </Button>
-        </Tooltip>
+        </Box>
       </Toolbar>
-
-      {/* <Tabs
-        value={selectedTab}
-        onChange={(event, newValue) => setSelectedTab(newValue)}
-        variant="scrollable"
-        scrollButtons="auto"
-        indicatorColor="primary"
-        textColor="primary"
-        sx={{
-          p: 1,
-          "& .MuiTab-root": {
-            minWidth: 150, // Минимальная ширина таба
-            borderRadius: "50px", // BorderRadius для всех табов
-            backgroundColor: "transparent", // Прозрачный фон для неактивных табов
-            color: "#ffffff", // Белый текст для всех табов
-            opacity: 0.7, // Прозрачность для неактивных табов
-            transition: "background-color 0.3s ease, opacity 0.3s ease", // Плавный переход
-          },
-          "& .MuiTab-root.Mui-selected": {
-            backgroundColor: "primary.main", // Подсветка активной табы
-            opacity: 1, // Полная видимость для активной табы
-            color: "#ffffff", // Белый текст для активной табы
-          },
-          "& .MuiTabs-indicator": {
-            display: "none", // Скрываем стандартный индикатор
-          },
-        }}
-      >
-        <Tab disabled={!connected} label="Feedback mode" />
-        <Tab disabled={!connected} label="Max mode" />
-        <Tab disabled={!connected} label="Average mode" />
-        <Tab  disabled={!connected} label="Timed mode" />
-        <Tab  disabled={!connected} label="Load mode" />
-      </Tabs> */}
     </AppBar>
   );
 };
