@@ -1,11 +1,11 @@
 type SoundKey = 'prepare' | 'start' | 'rest' | 'finish' | 'connect' | 'disconnect';
 
-import beforeStartTrainingSound from '../audio/beforeStartTraining.mp3';
-import startSound from '../audio/start.mp3';
-import rest1minSound from '../audio/rest1min.mp3';
-import connectSound from '../audio/connect.mp3';
-import finishSound from '../audio/finish.mp3';
-import disconnectSound from '../audio/disconnect.mp3';
+import beforeStartTrainingSound from '../assets/audio/beforeStartTraining.mp3';
+import startSound from '../assets/audio/start.mp3';
+import rest1minSound from '../assets/audio/rest1min.mp3';
+import connectSound from '../assets/audio/connect.mp3';
+import finishSound from '../assets/audio/finish.mp3'; 
+import disconnectSound from '../assets/audio/disconnect.mp3';
 export class SoundService {
   private sounds: Map<SoundKey, HTMLAudioElement> = new Map();
   private initialized: boolean = false;

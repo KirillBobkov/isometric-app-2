@@ -10,7 +10,7 @@ import {
   Box,
 } from "@mui/material";
 import { Dumbbell, Bluetooth, HelpCircle } from "lucide-react";
-import chromeImg from '../images/chrome.png';
+import chromeImg from '../assets/images/chrome.png';
 import React from "react";
 
 export const Header = ({ connected, onToggleConnect }: any) => {

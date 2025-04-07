@@ -1,6 +1,8 @@
-declare module './BluetoothService.js' {
+import { Observable } from 'rxjs';
+
+declare module './services/BluetoothService.js' {
   export class BluetoothService {
-    connect(): any;
+    connect(): Observable<string>;
     disconnect(): void;
     getStatus(): boolean;
   }

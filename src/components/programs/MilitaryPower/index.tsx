@@ -7,13 +7,11 @@ import {
   Box,
   Tabs,
   Tab,
-  Tooltip,
 } from "@mui/material";
-import { Cloud, Upload, Play, Square, FileText } from "lucide-react";
+import { Play, Square } from "lucide-react";
 
 import {
   saveTrainingData,
-  restoreTrainingData,
 } from "../../../services/FileService";
 import { generateTrainingReport } from "../../../services/ReportService";
 import { useTimer } from "../../../hooks/useTimer";
@@ -30,6 +28,7 @@ import { usePrevious } from "../../../hooks/usePrevious";
 import { getStatusMessage } from "../../../utils/statusMessages";
 import { ExerciseSelect } from "../../common/ExerciseSelect";
 import { MetricCard } from "../../common/MetricCard";
+import { FileOperations } from "../../common/FileOperations";
 
 const SET_COUNT = 10;
 export const REST_TIME = 60000;
@@ -100,30 +99,18 @@ export function MilitaryPower({
     saveTrainingData(trainingData);
   };
 
-  const restoreTraining = async (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    setTab("training");
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const restoredData = await restoreTrainingData(file);
-    if (restoredData) {
-      setTrainingData(restoredData);
-    }
-  };
-
   const stopTraining = async () => {
     if (!connected) {
       alert("Пожалуйста, подключите тренажер перед началом тренировки");
       return;
     }
 
+    await Promise.all([
+      saveTraining(),
+      generateTrainingReport(trainingData),
+    ]);
+
     await soundService.play("finish");
-
-    await saveTraining();
-
-    await generateTrainingReport(trainingData)
 
     setModeTimeline({
       mode: ActiveMode.DEFAULT,
@@ -133,10 +120,7 @@ export function MilitaryPower({
   };
 
   const startTraining = () => {
-    if (!connected) {
-      alert("Пожалуйста, подключите тренажер перед началом тренировки");
-      return;
-    }
+    if (!connected) return;
 
     setTab("training");
     setTrainingData(DEFAULT_TRAINING_DATA);
@@ -149,7 +133,6 @@ export function MilitaryPower({
       startTime: time,
       endTime: time + PREPARE_TIME,
     });
-    return;
   };
 
   const dataForRender =
@@ -392,91 +375,15 @@ export function MilitaryPower({
           )}
         </Box>
 
-        <Box
-          sx={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            gap: 2,
-            flexWrap: "wrap",
+        <FileOperations
+          disabled={!connected || modeTimeline.mode !== ActiveMode.DEFAULT}
+          trainingData={trainingData}
+          hasData={trainingData[selectedExercise]?.[1]?.length > 0}
+          onDataRestored={(data) => {
+            setTab("training");
+            setTrainingData(data);
           }}
-        >
-          <Tooltip
-            title="Сгенерировать подробный текстовый отчет с анализом тренировки по всем подходам"
-            arrow
-          >
-            <Button
-              variant="contained"
-              size="large"
-              startIcon={<FileText size={24} />}
-              onClick={() => generateTrainingReport(trainingData)}
-              disabled={
-                !connected ||
-                !(trainingData[selectedExercise]?.[1]?.length > 0) ||
-                modeTimeline.mode !== ActiveMode.DEFAULT
-              }
-              sx={{
-                borderRadius: "28px",
-                padding: "12px 32px",
-                backgroundColor: "#323232",
-              }}
-            >
-              Скачать текстовый отчет
-            </Button>
-          </Tooltip>
-          <Tooltip
-            title="Сохранится файл формата .json который можно будет загрузить при следующем сеансе и просмотреть каждый подход"
-            arrow
-          >
-            <Button
-              variant="contained"
-              size="large"
-              startIcon={<Cloud size={24} />}
-              onClick={saveTraining}
-              disabled={
-                !connected ||
-                !(trainingData[selectedExercise]?.[1]?.length > 0) ||
-                modeTimeline.mode !== ActiveMode.DEFAULT
-              }
-              sx={{
-                borderRadius: "28px",
-                padding: "12px 32px",
-                backgroundColor: "#323232",
-              }}
-            >
-              Скачать тренировку
-            </Button>
-          </Tooltip>
-
-          <Tooltip
-            title="Вы можете подробно на графике посмотреть свою тренировку. Загрузите сохраненную тренировку: выберите файл формата .json, в котором ранее была сохранена тренировка"
-            arrow
-          >
-            <Button
-              component="label"
-              variant="contained"
-              size="large"
-              startIcon={<Upload size={24} />}
-              disabled={
-                !connected ||
-                modeTimeline.mode !== ActiveMode.DEFAULT
-              }
-              sx={{
-                borderRadius: "28px",
-                padding: "12px 32px",
-                backgroundColor: "#323232",
-              }}
-            >
-              Восстановить тренировку
-              <input
-                type="file"
-                hidden
-                accept=".json"
-                onChange={restoreTraining}
-              />
-            </Button>
-          </Tooltip>
-        </Box>
+        />
       </Box>
 
       <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}>
@@ -485,7 +392,6 @@ export function MilitaryPower({
           <Tab disabled={!connected} label="Данные тренировки" value="training" />
         </Tabs>
       </Box>
-
       <Box
         sx={{
           display: "flex",
@@ -502,7 +408,6 @@ export function MilitaryPower({
                 unit="кг"
               />
             </Grid>
-
             <Grid item xs={12} md={12}>
               <MetricCard
                 title="Максимальный вес, поднятый за всю тренировку"

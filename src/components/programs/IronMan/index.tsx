@@ -73,7 +73,7 @@ export function IronMan({
 
   const [selectedExercise, setSelectedExercise] = useState<string>("");
   const [modeTimeline, setModeTimeline] = useState<ModeTimeline>({
-    mode: ActiveMode.FEEDBACK,
+    mode: ActiveMode.DEFAULT,
     startTime: 0,
     endTime: Date.now() + FEEDBACK_TIME,
   });
