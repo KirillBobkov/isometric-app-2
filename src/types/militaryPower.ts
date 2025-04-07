@@ -1,5 +1,5 @@
 export enum ActiveMode {
-  FEEDBACK = 'feedback',
+  DEFAULT = 'default',
   REST = 'rest',
   SET = 'set',
   PREPARING = 'preparing'

@@ -10,7 +10,7 @@ export const getStatusMessage = (mode: ActiveMode, isConnected: boolean): string
       return "Подход закончен, отдохните перед следующим подходом";
     case ActiveMode.SET:
       return "Выполняйте упражнение с максимальным усилием";
-    case ActiveMode.FEEDBACK:
+    case ActiveMode.DEFAULT:
       return "Если вы готовы, то выберите упражнение и нажмите на кнопку 'Начать тренировку'";
     default:
       return "";

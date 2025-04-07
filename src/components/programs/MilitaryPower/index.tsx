@@ -1,9 +1,21 @@
-import { useEffect, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
-import { Grid, Button, Container, Typography, Box } from "@mui/material";
-import { ArrowLeftIcon, Play, Square } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  Grid,
+  Button,
+  Container,
+  Typography,
+  Box,
+  Tabs,
+  Tab,
+  Tooltip,
+} from "@mui/material";
+import { Cloud, Upload, Play, Square, FileText } from "lucide-react";
 
-import { saveTrainingData } from "../../../services/FileService";
+import {
+  saveTrainingData,
+  restoreTrainingData,
+} from "../../../services/FileService";
+import { generateTrainingReport } from "../../../services/ReportService";
 import { useTimer } from "../../../hooks/useTimer";
 import { MilitaryPowerDescription } from "./MilitaryPowerDescription";
 import { TrainingTimer } from "../../TrainingTimer";
@@ -17,21 +29,19 @@ import { soundService } from "../../../services/SoundService";
 import { usePrevious } from "../../../hooks/usePrevious";
 import { getStatusMessage } from "../../../utils/statusMessages";
 import { ExerciseSelect } from "../../common/ExerciseSelect";
-import { StatusMessage } from "../../common/StatusMessage";
 import { MetricCard } from "../../common/MetricCard";
-import { formatTime } from "../../../utils/formatTime";
 
 const SET_COUNT = 10;
 export const REST_TIME = 60000;
-export const SET_TIME = 10000;
+export const SET_TIME = 6000;
 export const PREPARE_TIME = 10000;
-export const FEEDBACK_TIME = 31536000000;
+export const DEFAULT_TIME = 31536000000;
 
 const MODE_COLORS: Record<ActiveMode, string> = {
   [ActiveMode.PREPARING]: "rgb(25, 167, 255)", // Blue
   [ActiveMode.SET]: "rgb(229, 67, 67)", // Red
   [ActiveMode.REST]: "#4CAF50", // Green
-  [ActiveMode.FEEDBACK]: "rgb(25, 167, 255)", // Blue
+  [ActiveMode.DEFAULT]: "rgb(25, 167, 255)", // Blue
 };
 
 const exercises = [
@@ -45,135 +55,133 @@ interface ModeTimeline {
   endTime: number;
 }
 
+const DEFAULT_TRAINING_DATA = {
+  ["СТАНОВАЯ ТЯГА"]: {
+    1: [],
+  },
+  ["ЖИМ ПЛЕЧ"]: {
+    1: [],
+  },
+};
+
+
 export function MilitaryPower({
   connected = false,
   message,
 }: MilitaryPowerProps) {
-  const navigate = useNavigate();
-
-  const handleBack = () => {
-    navigate("/");
-  };
-
-  const { time } = useTimer(0, !connected);
+  const freezeTime = !connected;
+  const { time } = useTimer(0, freezeTime);
 
   const [trainingData, setTrainingData] = useState<
-    Record<number, SetDataPoint[]>
-  >({});
+    Record<string, Record<number, SetDataPoint[]>>
+      >(DEFAULT_TRAINING_DATA);
+
+  const [feedbackData, setFeedbackData] = useState<SetDataPoint[]>([]);
+
+  const [tab, setTab] = useState<"feedback" | "training">("feedback");
+
   const [set, setSet] = useState({
-    current: -1,
-    selected: -1,
-  });
-  const [selectedExercise, setSelectedExercise] = useState<string>("");
-  const [modeTimeline, setModeTimeline] = useState<ModeTimeline>({
-    mode: ActiveMode.FEEDBACK,
-    startTime: 0,
-    endTime: Date.now() + 31536000000,
+    current: 1,
+    selected: 1,
   });
 
-  const playSound = useCallback(async (soundKey: any) => {
-    try {
-      await soundService.play(soundKey);
-    } catch (err) {
-      console.warn(`Could not play ${soundKey} sound:`, err);
-    }
-  }, []);
+  const [selectedExercise, setSelectedExercise] = useState<string>("");
+
+  const [modeTimeline, setModeTimeline] = useState<ModeTimeline>({
+    mode: ActiveMode.DEFAULT,
+    startTime: 0,
+    endTime: Date.now() + DEFAULT_TIME,
+  });
 
   // Сохранение тренировки
-  const saveTraining = async (type: "normal" | "emergency" = "normal") => {
+  const saveTraining = async () => {
     if (Object.keys(trainingData).length === 0) return;
 
-    if (type === "normal") {
-      await soundService.play("finish");
-    }
+    saveTrainingData(trainingData);
+  };
 
-    const saved = await saveTrainingData({
-      trainingData,
-      time,
-      selectedExercise,
-    });
+  const restoreTraining = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    setTab("training");
+    const file = event.target.files?.[0];
+    if (!file) return;
 
-    if (saved) {
-      console.log("Данные тренировки успешно сохранены");
-    } else {
-      console.error("Ошибка при сохранении данных тренировки");
+    const restoredData = await restoreTrainingData(file);
+    if (restoredData) {
+      setTrainingData(restoredData);
     }
   };
 
-  // Обработка нажатия на кнопку тренировки
-  const handleTrainingToggle = () => {
+  const stopTraining = async () => {
     if (!connected) {
       alert("Пожалуйста, подключите тренажер перед началом тренировки");
       return;
     }
 
-    if (modeTimeline.mode === ActiveMode.FEEDBACK) {
-      setSet({
-        current: 1,
-        selected: 1,
-      });
-      setTrainingData({});
-      setModeTimeline({
-        mode: ActiveMode.PREPARING,
-        startTime: time,
-        endTime: time + PREPARE_TIME,
-      });
+    await soundService.play("finish");
+
+    await saveTraining();
+
+    await generateTrainingReport(trainingData)
+
+    setModeTimeline({
+      mode: ActiveMode.DEFAULT,
+      startTime: time,
+      endTime: time + DEFAULT_TIME,
+    });
+  };
+
+  const startTraining = () => {
+    if (!connected) {
+      alert("Пожалуйста, подключите тренажер перед началом тренировки");
       return;
     }
 
-    if (
-      modeTimeline.mode === ActiveMode.SET ||
-      modeTimeline.mode === ActiveMode.REST
-    ) {
-      saveTraining();
-      setSet((prev) => ({
-        ...prev,
-        selected: -1,
-      }));
-      setModeTimeline({
-        mode: ActiveMode.FEEDBACK,
-        startTime: time,
-        endTime: time + FEEDBACK_TIME,
-      });
-      return;
-    }
+    setTab("training");
+    setTrainingData(DEFAULT_TRAINING_DATA);
+    setSet({
+      current: 1,
+      selected: 1,
+    });
+    setModeTimeline({
+      mode: ActiveMode.PREPARING,
+      startTime: time,
+      endTime: time + PREPARE_TIME,
+    });
+    return;
   };
 
-  // Получение максимального веса
-  const getMaxWeight = () => {
-    if (
-      modeTimeline.mode !== ActiveMode.SET &&
-      modeTimeline.mode !== ActiveMode.REST
-    )
-      return 0;
+  const dataForRender =
+    tab === "feedback"
+      ? feedbackData
+      : trainingData[selectedExercise]?.[set.selected] || [];
+  
+  const maxWeight = dataForRender.length > 0
+    ? dataForRender.reduce((max, point) => Math.max(max, point.weight), 0)
+    : 0;
 
-    return Object.values(trainingData)
-      .flat()
-      .reduce((max, point) => Math.max(max, point.weight), 0);
-  };
-
-  // Получение максимального веса для выбранного подхода
-  const getMaxWeightForSelectedSet = () => {
-    const setData = trainingData[set.selected] || [];
-    return setData.reduce((max, point) => Math.max(max, point.weight), 0);
-  };
+  const maxWeightForAllSets = Object.values(trainingData)
+    .flatMap((sets) => Object.values(sets))
+    .flat()
+    .length > 0
+      ? Object.values(trainingData)
+          .flatMap((sets) => Object.values(sets))
+          .flat()
+          .reduce((max, point) => Math.max(max, point.weight), 0)
+      : 0;
 
   // Получение данных для графика
-  const getChartData = () => {
-    const data = trainingData[set.selected] || [];
-    const limitedData = data.slice(-50);
-
+  const getTrainingChartData = () => {
+    const limitedData = dataForRender.slice(-50);
     return {
       xAxis: limitedData.map((data) => data.time),
       yAxis: limitedData.map((data) => data.weight),
-      title:
-        modeTimeline.mode === ActiveMode.FEEDBACK
-          ? "Текущие показания"
-          : `Подход ${set.selected}`,
+      title: `Подход ${set.selected}`,
     };
   };
 
-  const { xAxis, yAxis, title } = getChartData();
+  const { xAxis, yAxis, title } = getTrainingChartData();
 
   useEffect(() => {
     soundService.initialize();
@@ -182,26 +190,25 @@ export function MilitaryPower({
   const currentSet = set.current;
   useEffect(() => {
     if (modeTimeline.mode === ActiveMode.REST) {
-      playSound("rest");
+      soundService.play("rest");
     } else if (modeTimeline.mode === ActiveMode.SET) {
-      playSound("start");
+      soundService.play("start");
     } else if (modeTimeline.mode === ActiveMode.PREPARING) {
-      playSound("prepare");
+      soundService.play("prepare");
     }
-  }, [modeTimeline.mode, currentSet, playSound]);
+  }, [modeTimeline.mode, currentSet]);
 
   const previousConnected = usePrevious(connected);
 
   if (!connected && previousConnected !== connected) {
-    setTrainingData({});
     setSet({
-      current: -1,
-      selected: -1,
+      current: 1,
+      selected: 1,
     });
     setModeTimeline({
-      mode: ActiveMode.FEEDBACK,
+      mode: ActiveMode.DEFAULT,
       startTime: 0,
-      endTime: time + FEEDBACK_TIME,
+      endTime: time + DEFAULT_TIME,
     });
   }
 
@@ -209,18 +216,21 @@ export function MilitaryPower({
 
   if (time !== previousTime && connected) {
     // Обработка данных от тренажера
-    if (modeTimeline.mode === ActiveMode.FEEDBACK) {
-      setTrainingData((prev) => ({
+    if (modeTimeline.mode === ActiveMode.DEFAULT) {
+      setFeedbackData((prev) => [
         ...prev,
-        [-1]: [...(prev[-1] || []), { time, weight: parseFloat(message) }],
-      }));
+        { time, weight: parseFloat(message) },
+      ]);
     } else if (modeTimeline.mode === ActiveMode.SET) {
       setTrainingData((prev) => ({
         ...prev,
-        [set.current]: [
-          ...(prev[set.current] || []),
-          { time, weight: parseFloat(message) },
-        ],
+        [selectedExercise]: {
+          ...prev[selectedExercise],
+          [set.current]: [
+            ...(prev[selectedExercise][set.current] || []),
+            { time, weight: parseFloat(message) },
+          ],
+        },
       }));
     }
     // Обработка перехода между режимами
@@ -237,11 +247,10 @@ export function MilitaryPower({
         case ActiveMode.SET:
           if (set.current >= SET_COUNT) {
             setModeTimeline({
-              mode: ActiveMode.FEEDBACK,
+              mode: ActiveMode.DEFAULT,
               startTime: time,
-              endTime: time + FEEDBACK_TIME,
+              endTime: time + DEFAULT_TIME,
             });
-            saveTraining();
           } else {
             setModeTimeline({
               mode: ActiveMode.REST,
@@ -272,22 +281,6 @@ export function MilitaryPower({
 
   return (
     <Container maxWidth="lg" sx={{ p: 0 }}>
-      <Button
-        variant="text"
-        color="inherit"
-        onClick={handleBack}
-        sx={{
-          position: "absolute",
-          top: 90,
-          left: 16,
-          display: "flex",
-          alignItems: "center",
-        }}
-      >
-        <ArrowLeftIcon />
-        Вернуться
-      </Button>
-
       <Typography
         variant="h3"
         component="h1"
@@ -297,7 +290,6 @@ export function MilitaryPower({
       >
         Солдатская мощь (Military Power)
       </Typography>
-
       <MilitaryPowerDescription />
 
       <Box
@@ -305,7 +297,7 @@ export function MilitaryPower({
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          mb: 10,
+          mb: 2,
           p: 2,
           mt: 12,
           gap: 2,
@@ -317,11 +309,12 @@ export function MilitaryPower({
             justifyContent: "center",
             alignItems: "center",
             gap: 2,
+            mb: 2,
             flexWrap: "wrap",
           }}
         >
           <ExerciseSelect
-            disabled={modeTimeline.mode !== ActiveMode.FEEDBACK || !connected}
+            disabled={modeTimeline.mode !== ActiveMode.DEFAULT || !connected}
             value={selectedExercise}
             onChange={setSelectedExercise}
             exercises={exercises}
@@ -331,13 +324,22 @@ export function MilitaryPower({
             variant="contained"
             size="large"
             startIcon={
-              modeTimeline.mode !== ActiveMode.FEEDBACK ? (
+              modeTimeline.mode !== ActiveMode.DEFAULT ? (
                 <Square size={24} />
               ) : (
                 <Play size={24} />
               )
             }
-            onClick={handleTrainingToggle}
+            onClick={() => {
+              if (
+                modeTimeline.mode === ActiveMode.SET ||
+                modeTimeline.mode === ActiveMode.REST
+              ) {
+                stopTraining();
+              } else {
+                startTraining();
+              }
+            }}
             disabled={
               !connected ||
               modeTimeline.mode === ActiveMode.PREPARING ||
@@ -347,34 +349,141 @@ export function MilitaryPower({
               borderRadius: "28px",
               padding: "12px 32px",
               backgroundColor:
-                modeTimeline.mode !== ActiveMode.FEEDBACK
+                modeTimeline.mode !== ActiveMode.DEFAULT
                   ? "#ff4444"
                   : "#4CAF50",
               "&:hover": {
                 backgroundColor:
-                  modeTimeline.mode !== ActiveMode.FEEDBACK
+                  modeTimeline.mode !== ActiveMode.DEFAULT
                     ? "#ff0000"
                     : "#45a049",
               },
             }}
           >
-            {modeTimeline.mode !== ActiveMode.FEEDBACK
+            {modeTimeline.mode !== ActiveMode.DEFAULT
               ? "Остановить тренировку"
               : "Начать тренировку"}
           </Button>
         </Box>
 
-        <StatusMessage
-          message={getStatusMessage(modeTimeline.mode, connected)}
-        />
+        <Box sx={{ display: "flex", flexDirection: "column", mb: 5, alignItems: "center", gap: 2 }}>
+          <Typography
+            variant="body1"
+          sx={{
+            color: "text.secondary",
+            textAlign: "center",
+            fontSize: "20px",
+            maxWidth: "600px",
+            padding: "8px 16px",
+            borderRadius: "8px",
+            mb: 2,
+            backgroundColor: "rgba(0, 0, 0, 0.03)",
+          }}
+        >
+          {getStatusMessage(modeTimeline.mode, connected)}
+        </Typography>
 
-        {modeTimeline.mode !== ActiveMode.FEEDBACK && (
+        {modeTimeline.mode !== ActiveMode.DEFAULT && (
           <TrainingTimer
             totalTime={modeTimeline.endTime - modeTimeline.startTime}
             time={modeTimeline.endTime - time}
             color={MODE_COLORS[modeTimeline.mode]}
           />
-        )}
+          )}
+        </Box>
+
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            gap: 2,
+            flexWrap: "wrap",
+          }}
+        >
+          <Tooltip
+            title="Сгенерировать подробный текстовый отчет с анализом тренировки по всем подходам"
+            arrow
+          >
+            <Button
+              variant="contained"
+              size="large"
+              startIcon={<FileText size={24} />}
+              onClick={() => generateTrainingReport(trainingData)}
+              disabled={
+                !connected ||
+                !(trainingData[selectedExercise]?.[1]?.length > 0) ||
+                modeTimeline.mode !== ActiveMode.DEFAULT
+              }
+              sx={{
+                borderRadius: "28px",
+                padding: "12px 32px",
+                backgroundColor: "#323232",
+              }}
+            >
+              Скачать текстовый отчет
+            </Button>
+          </Tooltip>
+          <Tooltip
+            title="Сохранится файл формата .json который можно будет загрузить при следующем сеансе и просмотреть каждый подход"
+            arrow
+          >
+            <Button
+              variant="contained"
+              size="large"
+              startIcon={<Cloud size={24} />}
+              onClick={saveTraining}
+              disabled={
+                !connected ||
+                !(trainingData[selectedExercise]?.[1]?.length > 0) ||
+                modeTimeline.mode !== ActiveMode.DEFAULT
+              }
+              sx={{
+                borderRadius: "28px",
+                padding: "12px 32px",
+                backgroundColor: "#323232",
+              }}
+            >
+              Скачать тренировку
+            </Button>
+          </Tooltip>
+
+          <Tooltip
+            title="Вы можете подробно на графике посмотреть свою тренировку. Загрузите сохраненную тренировку: выберите файл формата .json, в котором ранее была сохранена тренировка"
+            arrow
+          >
+            <Button
+              component="label"
+              variant="contained"
+              size="large"
+              startIcon={<Upload size={24} />}
+              disabled={
+                !connected ||
+                modeTimeline.mode !== ActiveMode.DEFAULT
+              }
+              sx={{
+                borderRadius: "28px",
+                padding: "12px 32px",
+                backgroundColor: "#323232",
+              }}
+            >
+              Восстановить тренировку
+              <input
+                type="file"
+                hidden
+                accept=".json"
+                onChange={restoreTraining}
+              />
+            </Button>
+          </Tooltip>
+        </Box>
+      </Box>
+
+      <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}>
+        <Tabs value={tab} onChange={(_, newValue) => setTab(newValue)}>
+          <Tab disabled={!connected} label="Реалтайм показания" value="feedback" />
+          <Tab disabled={!connected} label="Данные тренировки" value="training" />
+        </Tabs>
       </Box>
 
       <Box
@@ -384,49 +493,51 @@ export function MilitaryPower({
           gap: 4,
         }}
       >
-        <Grid container spacing={2} sx={{ flex: 1 }}>
-          <Grid item xs={12} md={12}>
-            <MetricCard
-              title="Тренажер подключен, время:"
-              value={formatTime(time)}
-              unit=""
-            />
-          </Grid>
-          <Grid item xs={12} md={12}>
-            <MetricCard
-              title={`${
-                set.selected === -1
-                  ? "Максимальный вес, поднятый в режиме обратной связи"
-                  : `Максимальный вес, поднятый в подходе № ${set.selected}`
-              }`}
-              value={getMaxWeightForSelectedSet().toFixed(1)}
-              unit="кг"
-            />
-          </Grid>
+        {tab === "training" && (
+          <Grid container spacing={2} sx={{ flex: 1 }}>
+            <Grid item xs={12} md={12}>
+              <MetricCard
+                title={`${`Максимальный вес, поднятый в подходе № ${set.selected}`}`}
+                value={maxWeight.toFixed(1)}
+                unit="кг"
+              />
+            </Grid>
 
-          <Grid item xs={12} md={12}>
-            <MetricCard
-              title="Максимальный вес, поднятый за всю тренировку"
-              value={getMaxWeight().toFixed(1)}
-              unit="кг"
-            />
+            <Grid item xs={12} md={12}>
+              <MetricCard
+                title="Максимальный вес, поднятый за всю тренировку"
+                value={maxWeightForAllSets.toFixed(1)}
+                unit="кг"
+              />
+            </Grid>
           </Grid>
-        </Grid>
+        )}
 
         <Box sx={{ flex: 2 }}>
-          <Chart
-            xAxis={xAxis}
-            yAxis={yAxis}
-            title={title}
-            isTrainingActive={
-              modeTimeline.mode === ActiveMode.SET ||
-              modeTimeline.mode === ActiveMode.REST
-            }
-            selectedSet={set.selected}
-            onSetChange={(set) =>
-              setSet((prev) => ({ ...prev, selected: set }))
-            }
-          />
+          {tab === "training" && (
+            <Chart
+              xAxis={xAxis}
+              yAxis={yAxis}
+              title={title}
+              sets={
+                Object.keys(trainingData[selectedExercise] ?? {})?.length ?? 1
+              }
+              selectedSet={set.selected}
+              onSetChange={(set) =>
+                setSet((prev) => ({ ...prev, selected: set }))
+              }
+            />
+          )}
+          {tab === "feedback" && (
+            <Chart
+              xAxis={feedbackData.map((d) => d.time)}
+              yAxis={feedbackData.map((d) => d.weight)}
+              title="Обратная связь"
+              sets={1}
+              selectedSet={1}
+              onSetChange={() => {}}
+            />
+          )}
         </Box>
       </Box>
     </Container>

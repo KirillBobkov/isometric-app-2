@@ -1,4 +1,4 @@
-import { Card, CardContent, Typography } from "@mui/material";
+import { Card, CardContent } from "@mui/material";
 
 interface InfoCardProps {
   children: React.ReactNode;
@@ -21,7 +21,7 @@ export const InfoCard = ({ children }: InfoCardProps) => {
           display: 'flex', 
           flexDirection:'column', 
           alignItems: 'center', 
-          justifyContent: 'center' 
+          justifyContent: 'flex-start' 
         }}
       >
         {children}

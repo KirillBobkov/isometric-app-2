@@ -10,6 +10,13 @@ const programs = [
     disabled: false,
   },
   {
+    title: "Железный человек (Iron Man)",
+    description:
+      "Продвинутая программа для достижения максимальных результатов в силе и выносливости.",
+    path: "/iron-man",
+    disabled: true,
+  },
+  {
     title: "Прометей (The Promethean)",
     description:
       "Базовая программа тренировок, направленная на общее развитие силы и выносливости.",
@@ -56,13 +63,6 @@ const programs = [
     description:
       "Трехдневная интенсивная программа с чередованием нагрузки и отдыха.",
     path: "/3-days-on",
-    disabled: true,
-  },
-  {
-    title: "Железный человек (Iron Man)",
-    description:
-      "Продвинутая программа для достижения максимальных результатов в силе и выносливости.",
-    path: "/iron-man",
     disabled: true,
   },
 ];

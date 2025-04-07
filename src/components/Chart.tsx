@@ -17,15 +17,16 @@ interface ChartProps {
   isTrainingActive?: boolean;
   selectedSet?: number;
   onSetChange?: (set: number) => void;
+  sets?: number;
 }
 
 export function Chart({
   xAxis,
   yAxis,
   title,
-  isTrainingActive = false,
   selectedSet = 1,
   onSetChange,
+  sets = 1,
 }: ChartProps) {
   return (
     <Card
@@ -49,7 +50,7 @@ export function Chart({
           <div>
             <Typography variant="subtitle1">График усилий</Typography>
           </div>
-          {isTrainingActive && onSetChange && (
+          {sets > 1 && onSetChange && (
             <FormControl sx={{ minWidth: 200 }}>
               <InputLabel id="set-select-label">Выберите запись подхода</InputLabel>
               <Select
@@ -59,7 +60,7 @@ export function Chart({
                 onChange={(e) => onSetChange(Number(e.target.value))}
                 size="small"
               >
-                {new Array(10).fill(0).map((_, index) => (
+                {new Array(sets).fill(0).map((_, index) => (
                   <MenuItem key={index + 1} value={index + 1}>
                     Подход № {index + 1}
                   </MenuItem>
