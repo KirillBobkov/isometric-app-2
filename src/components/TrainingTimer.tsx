@@ -27,6 +27,7 @@ export const TrainingTimer: FC<TrainingTimerProps> = ({
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
+          margin: '0 auto',
         }}
       >
         <svg

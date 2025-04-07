@@ -1,5 +1,5 @@
 import { Button, Box, Tooltip } from "@mui/material";
-import { Cloud, Upload, FileText } from "lucide-react";
+import { Upload, FileText, Download } from "lucide-react";
 import { SetDataPoint } from "../../types/militaryPower";
 import { saveTrainingData, restoreTrainingData } from "../../services/FileService";
 import { generateTrainingReport } from "../../services/ReportService";
@@ -76,8 +76,9 @@ export const FileOperations: React.FC<FileOperationsProps> = ({
     <Box
       sx={{
         display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
+        flexDirection: "column",
+        justifyContent: { xs: "center", md: "flex-start" },
+        alignItems: "flex-end",
         gap: 2,
         flexWrap: "wrap",
       }}
@@ -112,7 +113,7 @@ export const FileOperations: React.FC<FileOperationsProps> = ({
           <Button
             variant="contained"
             size="large"
-            startIcon={<Cloud size={24} />}
+            startIcon={<Download size={24} />}
             onClick={handleSaveTraining}
             disabled={disabled || !hasData}
             sx={{
