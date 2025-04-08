@@ -1,39 +1,70 @@
 import { useEffect, useState } from "react";
 import {
-  Grid,
   Button,
   Container,
   Typography,
   Box,
   Tabs,
   Tab,
+  Card,
+  CardContent,
 } from "@mui/material";
 import { Play, Square } from "lucide-react";
 
-import { saveTrainingData } from "../../../services/FileService";
 import { generateTrainingReport } from "../../../services/ReportService";
 import { useTimer } from "../../../hooks/useTimer";
 import { MilitaryPowerDescription } from "./MilitaryPowerDescription";
 import { TrainingTimer } from "../../TrainingTimer";
-import {
-  ActiveMode,
-  SetDataPoint,
-  MilitaryPowerProps,
-} from "../../../types/militaryPower";
 import { Chart } from "../../Chart";
 import { soundService } from "../../../services/SoundService";
 import { usePrevious } from "../../../hooks/usePrevious";
-import { getStatusMessage } from "../../../utils/statusMessages";
+
 import { ExerciseSelect } from "../../common/ExerciseSelect";
-import { MetricCard } from "../../common/MetricCard";
 import { FileOperations } from "../../common/FileOperations";
-import { InfoCard } from "../../InfoCard";
+
+enum ActiveMode {
+  DEFAULT = "default",
+  REST = "rest",
+  SET = "set",
+  PREPARING = "preparing",
+}
+
+interface ModeTimeline {
+  mode: ActiveMode;
+  startTime: number;
+  endTime: number;
+}
+
+type SetDataPoint = {
+  time: number;
+  weight: number;
+};
 
 const SET_COUNT = 10;
 export const REST_TIME = 60000;
 export const SET_TIME = 6000;
 export const PREPARE_TIME = 10000;
 export const DEFAULT_TIME = 31536000000;
+
+export const getStatusMessage = (
+  mode: ActiveMode,
+  isConnected: boolean
+): string => {
+  if (!isConnected) return "Подключите тренажер для начала тренировки";
+
+  switch (mode) {
+    case ActiveMode.PREPARING:
+      return "Приготовьтесь, тренировка сейчас начнется";
+    case ActiveMode.REST:
+      return "Подход закончен, отдохните перед следующим подходом";
+    case ActiveMode.SET:
+      return "Выполняйте упражнение с максимальным усилием";
+    case ActiveMode.DEFAULT:
+      return "Если вы готовы, то выберите упражнение и нажмите на кнопку 'Начать тренировку'";
+    default:
+      return "";
+  }
+};
 
 const MODE_COLORS: Record<ActiveMode, string> = {
   [ActiveMode.PREPARING]: "rgb(25, 167, 255)", // Blue
@@ -47,12 +78,6 @@ const exercises = [
   { value: "ЖИМ ПЛЕЧ", label: "ЖИМ ПЛЕЧ" },
 ];
 
-interface ModeTimeline {
-  mode: ActiveMode;
-  startTime: number;
-  endTime: number;
-}
-
 const DEFAULT_TRAINING_DATA = {
   ["СТАНОВАЯ ТЯГА"]: {
     1: [],
@@ -65,7 +90,10 @@ const DEFAULT_TRAINING_DATA = {
 export function MilitaryPower({
   connected = false,
   message,
-}: MilitaryPowerProps) {
+}: {
+  connected: boolean;
+  message: any;
+}) {
   const freezeTime = !connected;
   const { time } = useTimer(0, freezeTime);
 
@@ -90,20 +118,13 @@ export function MilitaryPower({
     endTime: Date.now() + DEFAULT_TIME,
   });
 
-  // Сохранение тренировки
-  const saveTraining = async () => {
-    if (Object.keys(trainingData).length === 0) return;
-
-    saveTrainingData(trainingData);
-  };
-
   const stopTraining = async () => {
     if (!connected) {
       alert("Пожалуйста, подключите тренажер перед началом тренировки");
       return;
     }
 
-    await Promise.all([saveTraining(), generateTrainingReport(trainingData)]);
+    await generateTrainingReport(trainingData, 'Солдатская мощь');
 
     await soundService.play("finish");
 
@@ -171,7 +192,7 @@ export function MilitaryPower({
     if (modeTimeline.mode === ActiveMode.REST) {
       soundService.play("rest");
     } else if (modeTimeline.mode === ActiveMode.SET) {
-      soundService.play("start");
+      soundService.play("start_with_max");
     } else if (modeTimeline.mode === ActiveMode.PREPARING) {
       soundService.play("prepare");
     }
@@ -189,6 +210,7 @@ export function MilitaryPower({
       startTime: 0,
       endTime: time + DEFAULT_TIME,
     });
+    setFeedbackData([]);
   }
 
   const previousTime = usePrevious(time);
@@ -271,146 +293,231 @@ export function MilitaryPower({
       </Typography>
       <MilitaryPowerDescription />
 
-      <InfoCard sx={{
-        mb: 4,
-        p: 2,
-      }}>
-        <Box
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: { xs: "center", md: "center" },
+          flex: { xs: "1 1 100%", md: 1 },
+          mt: { xs: 3, md: 0 },
+          mb: 6,
+        }}
+      >
+        <FileOperations
+          disabled={modeTimeline.mode !== ActiveMode.DEFAULT}
+          trainingData={trainingData}
+          hasData={Object.values(trainingData).some(exercise => Object.values(exercise).some(set => set.length > 0))}
+          onDataRestored={(data) => {
+            setTab("training");
+            setTrainingData(data);
+          }}
+          name="Солдатская мощь"
+        />
+      </Box>
+
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: { xs: "column", md: "row" },
+          width: "100%",
+          gap: 2,
+          mb: 2,
+        }}
+      >
+        <Card
           sx={{
             display: "flex",
-            justifyContent: "space-between",
-            width: "100%",
-            flexWrap: { xs: "wrap", md: "nowrap" },
+            flexDirection: "column",
+            alignItems: { xs: "center", md: "center" },
+            justifyContent: "center",
             gap: 2,
+            flex: { xs: "1 1 100%", md: 2 },
+            p: 4,
+            borderRadius: 4,
           }}
         >
           <Box
             sx={{
               display: "flex",
-              flexDirection: "column",
-              alignItems: { xs: "center", md: "flex-start" },
-              justifyContent: "center",
+              justifyContent: { xs: "center", md: "center" },
+              alignItems: "center",
               gap: 2,
-              flex: 2,
+              flexWrap: "wrap",
+              mb: 2,
             }}
           >
-            <Box
-              sx={{
-                display: "flex",
-                justifyContent: { xs: "center",  md: "flex-start" },
-                alignItems: "center",
-                gap: 2,
-                flexWrap: "wrap",
-                mb: 2,
-              }}
-            >
-              <ExerciseSelect
-                disabled={modeTimeline.mode !== ActiveMode.DEFAULT || !connected}
-                value={selectedExercise}
-                onChange={setSelectedExercise}
-                exercises={exercises}
-              />
+            <ExerciseSelect
+              disabled={
+                modeTimeline.mode !== ActiveMode.DEFAULT || !connected
+              }
+              value={selectedExercise}
+              onChange={setSelectedExercise}
+              exercises={exercises}
+            />
 
-              <Button
-                variant="contained"
-                size="large"
-                startIcon={
-                  modeTimeline.mode !== ActiveMode.DEFAULT ? (
-                    <Square size={24} />
-                  ) : (
-                    <Play size={24} />
-                  )
+            <Button
+              variant="contained"
+              size="large"
+              startIcon={
+                modeTimeline.mode !== ActiveMode.DEFAULT ? (
+                  <Square size={24} />
+                ) : (
+                  <Play size={24} />
+                )
+              }
+              onClick={() => {
+                if (
+                  modeTimeline.mode === ActiveMode.SET ||
+                  modeTimeline.mode === ActiveMode.REST
+                ) {
+                  stopTraining();
+                } else {
+                  startTraining();
                 }
-                onClick={() => {
-                  if (
-                    modeTimeline.mode === ActiveMode.SET ||
-                    modeTimeline.mode === ActiveMode.REST
-                  ) {
-                    stopTraining();
-                  } else {
-                    startTraining();
-                  }
-                }}
-                disabled={
-                  !connected ||
-                  modeTimeline.mode === ActiveMode.PREPARING ||
-                  !selectedExercise
-                }
-                sx={{
-                  borderRadius: "28px",
-                  padding: "12px 32px",
+              }}
+              disabled={
+                !connected ||
+                modeTimeline.mode === ActiveMode.PREPARING ||
+                !selectedExercise
+              }
+              sx={{
+                borderRadius: "28px",
+                padding: "12px 32px",
+                backgroundColor:
+                  modeTimeline.mode !== ActiveMode.DEFAULT
+                    ? "#ff4444"
+                    : "#4CAF50",
+                "&:hover": {
                   backgroundColor:
                     modeTimeline.mode !== ActiveMode.DEFAULT
-                      ? "#ff4444"
-                      : "#4CAF50",
-                  "&:hover": {
-                    backgroundColor:
-                      modeTimeline.mode !== ActiveMode.DEFAULT
-                        ? "#ff0000"
-                        : "#45a049",
-                  },
-                }}
-              >
-                {modeTimeline.mode !== ActiveMode.DEFAULT
-                  ? "Остановить тренировку"
-                  : "Начать тренировку"}
-              </Button>
-            </Box>
-
-            <Typography
-              variant="body1"
-              sx={{
-                color: "text.secondary",
-                textAlign: "center",
-                fontSize: "20px",
-                maxWidth: "600px",
-                padding: "8px 16px",
-                borderRadius: "8px",
-                mb: 2,
-                backgroundColor: "rgba(0, 0, 0, 0.03)",
+                      ? "#ff0000"
+                      : "#45a049",
+                },
               }}
             >
-              {getStatusMessage(modeTimeline.mode, connected)}
-            </Typography>
+              {modeTimeline.mode !== ActiveMode.DEFAULT
+                ? "Остановить тренировку"
+                : "Начать тренировку"}
+            </Button>
+          </Box>  
 
-            {modeTimeline.mode !== ActiveMode.DEFAULT && (
-              <TrainingTimer
-                totalTime={modeTimeline.endTime - modeTimeline.startTime}
-                time={modeTimeline.endTime - time}
-                color={MODE_COLORS[modeTimeline.mode]}
-              />
-            )}
-          </Box>
-
-          <Box
+          <Typography
+            variant="body1"
             sx={{
-              display: "flex",
-              justifyContent: { xs: "center", md: "flex-end" },
-              flex: { xs: "1 1 100%", md: 1 },
-              mt: { xs: 3, md: 0 },
+              color: "text.secondary",
+              textAlign: "center",
+              fontSize: "20px",
+              maxWidth: "600px",
+              padding: "8px 16px",
+              borderRadius: "8px",
+              mb: 2,
+              backgroundColor: "rgba(0, 0, 0, 0.03)",
             }}
           >
-            <FileOperations
-              disabled={!connected || modeTimeline.mode !== ActiveMode.DEFAULT}
-              trainingData={trainingData}
-              hasData={trainingData[selectedExercise]?.[1]?.length > 0}
-              onDataRestored={(data) => {
-                setTab("training");
-                setTrainingData(data);
-              }}
+            {getStatusMessage(modeTimeline.mode, connected)}
+          </Typography>
+
+          {modeTimeline.mode !== ActiveMode.DEFAULT && (
+            <TrainingTimer
+              totalTime={modeTimeline.endTime - modeTimeline.startTime}
+              time={modeTimeline.endTime - time}
+              color={MODE_COLORS[modeTimeline.mode]}
             />
-          </Box>
+          )}
+        </Card>
+
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+            flex: { xs: "1 1 100%", md: 1 },
+            maxWidth: { xs: "100%", md: "380px" },
+          }}
+        >
+          <Card
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              borderRadius: 4,
+              transition: "all 0.3s ease",
+              p: 4,
+              flexGrow: 1,
+            }}
+          >
+            <CardContent
+              sx={{
+                flexGrow: 1,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                align="center"
+                sx={{ mb: 1 }}
+              >
+                Максимальный вес, поднятый в подходе № {set.selected}
+              </Typography>
+              <Typography
+                variant="h1"
+                align="center"
+                sx={{ fontWeight: "bold" }}
+              >
+                {`${maxWeight.toFixed(1)} кг`}
+              </Typography>
+            </CardContent>
+          </Card>
+          
+          <Card
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              borderRadius: 4,
+              transition: "all 0.3s ease",
+              p: 4,
+              flexGrow: 1,
+            }}
+          >
+            <CardContent
+              sx={{
+                flexGrow: 1,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                align="center"
+                sx={{ mb: 1 }}
+              >
+                Максимальный вес, поднятый за всю тренировку
+              </Typography>
+              <Typography
+                variant="h1"
+                align="center"
+                sx={{ fontWeight: "bold" }}
+              >
+                {`${maxWeightForAllSets.toFixed(1)} кг`}
+              </Typography>
+            </CardContent>
+          </Card>
         </Box>
-      </InfoCard>
+      </Box>
 
       <Box sx={{ borderBottom: 0, borderColor: "divider", mb: 2 }}>
-        <Tabs 
-          value={tab} 
+        <Tabs
+          value={tab}
           onChange={(_, newValue) => setTab(newValue)}
           sx={{
             "& .MuiTabs-indicator": {
-              display: "none"
-            }
+              display: "none",
+            },
           }}
         >
           <Tab
@@ -427,7 +534,7 @@ export function MilitaryPower({
               },
               "&:not(.Mui-selected)": {
                 backgroundColor: "transparent",
-              }
+              },
             }}
           />
           <Tab
@@ -443,7 +550,7 @@ export function MilitaryPower({
               },
               "&:not(.Mui-selected)": {
                 backgroundColor: "transparent",
-              }
+              },
             }}
           />
         </Tabs>
@@ -455,26 +562,7 @@ export function MilitaryPower({
           gap: 4,
         }}
       >
-        {tab === "training" && (
-          <Grid container spacing={2} sx={{ flex: 1 }}>
-            <Grid item xs={12} md={12}>
-              <MetricCard
-                title={`${`Максимальный вес, поднятый в подходе № ${set.selected}`}`}
-                value={maxWeight.toFixed(1)}
-                unit="кг"
-              />
-            </Grid>
-            <Grid item xs={12} md={12}>
-              <MetricCard
-                title="Максимальный вес, поднятый за всю тренировку"
-                value={maxWeightForAllSets.toFixed(1)}
-                unit="кг"
-              />
-            </Grid>
-          </Grid>
-        )}
-
-        <Box sx={{ flex: 2 }}>
+        <Box sx={{ flex: 1 }}>
           {tab === "training" && (
             <Chart
               xAxis={xAxis}

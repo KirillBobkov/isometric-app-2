@@ -14,7 +14,7 @@ const programs = [
     description:
       "Продвинутая программа для достижения максимальных результатов в силе и выносливости.",
     path: "/iron-man",
-    disabled: true,
+    disabled: false,
   },
   {
     title: "Прометей (The Promethean)",

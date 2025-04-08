@@ -7,7 +7,7 @@ type TrainingData = Record<string, Record<number, SetDataPoint[]>>;
 
 export const saveTrainingData = async (trainingData: TrainingData) => {
   try {
-    const fileName = `training_${new Date().toISOString().split('.')[0]}.json`;
+    const fileName = `Резервная копия тренировки_${new Date().toISOString().split('.')[0]}.json`;
     const jsonContent = JSON.stringify(trainingData, null, 2);
 
     const blob = new Blob([jsonContent], { type: "application/json" });

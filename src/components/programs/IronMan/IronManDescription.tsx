@@ -13,7 +13,7 @@ import {
   TableBody,
   Paper
 } from "@mui/material";
-import { InfoCard } from '../../InfoCard';
+import { Card } from "@mui/material";
 
 export function IronManDescription() {
   const [isContentVisible, setIsContentVisible] = useState(false);
@@ -44,11 +44,11 @@ export function IronManDescription() {
       </Button>
 
       <Collapse in={isContentVisible} timeout="auto">
-        <Box sx={{ mb: 4 }}>
+        <Box sx={{ mb: 6 }}>
           <Grid container spacing={4} mb={8}>
             {/* О программе */}
             <Grid item xs={12} md={6}>
-              <InfoCard>
+              <Card sx={{ borderRadius: 4, p: 4 }}  >
                 <Typography
                   variant="h5"
                   align="center"
@@ -71,12 +71,12 @@ export function IronManDescription() {
                   (без истощения, без боли в мышцах), могут постепенно экспериментировать с 
                   исключением дней отдыха.
                 </Typography>
-              </InfoCard>
+              </Card>
             </Grid>
 
             {/* Тренировочный план */}
             <Grid item xs={12} md={6}>
-              <InfoCard>
+              <Card sx={{ borderRadius: 4, p: 4 }}    >
                 <Typography
                   variant="h5"
                   align="center"
@@ -141,12 +141,12 @@ export function IronManDescription() {
                     </TableBody>
                   </Table>
                 </TableContainer>
-              </InfoCard>
+              </Card>
             </Grid>
 
             {/* Протокол тренировки */}
             <Grid item xs={12} md={6}>
-              <InfoCard>
+              <Card sx={{ borderRadius: 4, p: 4 }}      >
                 <Typography
                   variant="h5"
                   align="center"
@@ -192,12 +192,12 @@ export function IronManDescription() {
                     8. По завершении тренировки выполните охлаждение (глава 14).
                   </Typography>
                 </Box>
-              </InfoCard>
+              </Card>
             </Grid>
 
             {/* Важные нюансы */}
             <Grid item xs={12} md={6}>
-              <InfoCard>
+              <Card sx={{ borderRadius: 4, p: 4 }}>
                 <Typography
                   variant="h5"
                   align="center"
@@ -235,7 +235,7 @@ export function IronManDescription() {
                     • Те, кто быстро восстанавливается, могут экспериментировать с исключением дней отдыха
                   </Typography>
                 </Box>
-              </InfoCard>
+              </Card>
             </Grid>
           </Grid>
         </Box>

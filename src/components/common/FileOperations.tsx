@@ -1,6 +1,6 @@
 import { Button, Box, Tooltip } from "@mui/material";
 import { Upload, FileText, Download } from "lucide-react";
-import { SetDataPoint } from "../../types/militaryPower";
+
 import { saveTrainingData, restoreTrainingData } from "../../services/FileService";
 import { generateTrainingReport } from "../../services/ReportService";
 
@@ -13,7 +13,7 @@ interface FileOperationsProps {
   /**
    * Данные тренировки для сохранения или генерации отчета
    */
-  trainingData: Record<string, Record<number, SetDataPoint[]>>;
+  trainingData: Record<string, Record<number, {time: number, weight: number}[]>>;
   
   /**
    * Флаг, указывающий есть ли данные для сохранения/отчета
@@ -23,7 +23,8 @@ interface FileOperationsProps {
   /**
    * Callback вызываемый после успешного восстановления данных
    */
-  onDataRestored?: (data: Record<string, Record<number, SetDataPoint[]>>) => void;
+  onDataRestored?: (data: Record<string, Record<number, {time: number, weight: number}[]>>) => void;
+  name: string;
 }
 
 /**
@@ -33,7 +34,8 @@ export const FileOperations: React.FC<FileOperationsProps> = ({
   disabled,
   trainingData,
   hasData,
-  onDataRestored
+  onDataRestored,
+  name,   
 }) => {
   // Сохранение тренировки в JSON
   const handleSaveTraining = async () => {
@@ -65,7 +67,7 @@ export const FileOperations: React.FC<FileOperationsProps> = ({
   // Генерация текстового отчета
   const handleGenerateReport = async () => {
     try {
-      await generateTrainingReport(trainingData);
+      await generateTrainingReport(trainingData, name);
     } catch (error) {
       console.error("Ошибка при генерации отчета:", error);
       alert("Не удалось создать отчет");
@@ -76,9 +78,8 @@ export const FileOperations: React.FC<FileOperationsProps> = ({
     <Box
       sx={{
         display: "flex",
-        flexDirection: "column",
-        justifyContent: { xs: "center", md: "flex-start" },
-        alignItems: "flex-end",
+        justifyContent: { xs: "center", md: "center" },
+        alignItems: "center",
         gap: 2,
         flexWrap: "wrap",
       }}

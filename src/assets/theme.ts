@@ -17,7 +17,7 @@ export const appTheme = createTheme({
     },
     background: {
       default: '#000000', // Dark background
-      paper: '#121212' // Slightly lighter background for cards and papers
+      paper: '#0c0c0c' // Slightly lighter background for cards and papers
     },
     text: {
       primary: '#FFFFFF', // Main text color

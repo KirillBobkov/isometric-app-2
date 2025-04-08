@@ -1,300 +1,284 @@
-import { useEffect, useState, useCallback } from "react";
-import { Grid, Button, Container, Typography, Box } from "@mui/material";
+import { useEffect, useState } from "react";
+import {
+  Button,
+  Container,
+  Typography,
+  Box,
+  Tabs,
+  Tab,
+  Card,
+  CardContent,
+} from "@mui/material";
 import { Play, Square } from "lucide-react";
 
-import { saveTrainingData } from "../../../services/FileService";
+// import { generateTrainingReport } from "../../../services/ReportService";
 import { useTimer } from "../../../hooks/useTimer";
 import { IronManDescription } from "./IronManDescription";
 import { TrainingTimer } from "../../TrainingTimer";
-import { ActiveMode } from "../../../types/militaryPower";
 import { Chart } from "../../Chart";
 import { soundService } from "../../../services/SoundService";
 import { usePrevious } from "../../../hooks/usePrevious";
-import { getStatusMessage } from "../../../utils/statusMessages";
 import { ExerciseSelect } from "../../common/ExerciseSelect";
-import { MetricCard } from "../../common/MetricCard";
-import { formatTime } from "../../../utils/formatTime";
+import { FileOperations } from "../../common/FileOperations";
 
-// Define constants specific to Iron Man program
-const SET_COUNT = 6; // Total exercises (3 long + 3 short)
-export const REST_TIME = 60000; // 1 minute rest between exercises
-export const LONG_SET_TIME = 120000; // 2 minutes for long exercises
-export const SHORT_SET_TIME = 60000; // 1 minute for short exercises
-export const PREPARE_TIME = 10000; // 10 seconds preparation
-export const FEEDBACK_TIME = 31536000000; // Large number for unlimited feedback time
+enum ActiveMode {
+  DEFAULT = "default",
+  PREPARING = "preparing",
+  CHECK_MAX_WEIGHT = "check_max_weight",
+  SET = "set",
+  FINISHED = "finished",
+}
+
+export const SET_TIME = 12 * 1000;
+export const PREPARE_TIME = 10000;
+export const CHECK_MAX_WEIGHT_TIME = 10000;
+export const DEFAULT_TIME = 31536000000;
+
+export const getStatusMessage = (
+  mode: ActiveMode,
+  isConnected: boolean
+): string => {
+  if (!isConnected) return "Подключите тренажер для начала тренировки";
+
+  switch (mode) {
+    case ActiveMode.PREPARING:
+      return "Приготовьтесь, сначала измерим ваш максимальный вес";
+    case ActiveMode.CHECK_MAX_WEIGHT:
+      return "Измеряем ваш максимальный вес";
+    case ActiveMode.SET:
+      return "Удерживайте весь в диапазоне";
+    case ActiveMode.DEFAULT:
+      return "Если вы готовы, то выберите упражнение и нажмите на кнопку 'Начать упражнение'";
+    case ActiveMode.FINISHED:
+      return "Тренировка завершена";
+    default:
+      return "";
+  }
+};
 
 // Exercise groups
-const LONG_EXERCISES = ["ПОДЪЕМ ШТАНГИ С ПОЛА", "ГОЛЛАНДЦЫ", "ПРЕСС ОТ ГРУДИ"];
-const SHORT_EXERCISES = ["ФРОНТАЛЬНЫЕ ВЫПАДЫ", "ПОДЪЕМЫ НА НОСКИ", "ГАНТЕЛЬНАЯ ТЯГА В НАКЛОНЕ"];
+const LONG_EXERCISES = [
+  "ПОДЪЕМ ШТАНГИ С ПОЛА (DEADLIFT)",
+  "ПОДЕМ НА БИЦЕПС (BICEPS CURL)",
+  "ПРЕСС ОТ ГРУДИ (SHOULDER PRESS)",
+];
+const SHORT_EXERCISES = [
+  "ФРОНТАЛЬНЫЕ ВЫПАДЫ (FRONT SQUAT)",
+  "ПОДЪЕМЫ НА НОСКИ (CALF RAISE)",
+  "ГАНТЕЛЬНАЯ ТЯГА В НАКЛОНЕ (BENT-OVER ROW)",
+];
+
+const DEFAULT_TRAINING_DATA = [...LONG_EXERCISES, ...SHORT_EXERCISES].reduce(
+  (acc, exercise) => {
+    acc[exercise] = { 1: [] };
+    return acc;
+  },
+  {} as Record<string, Record<number, any[]>>
+);
 
 const MODE_COLORS: Record<ActiveMode, string> = {
   [ActiveMode.PREPARING]: "rgb(25, 167, 255)", // Blue
   [ActiveMode.SET]: "rgb(229, 67, 67)", // Red
-  [ActiveMode.REST]: "#4CAF50", // Green
+  [ActiveMode.CHECK_MAX_WEIGHT]: "rgb(229, 67, 67)", // Red
   [ActiveMode.DEFAULT]: "rgb(25, 167, 255)", // Blue
+  [ActiveMode.FINISHED]: "rgb(25, 167, 255)", // Blue
 };
 
-// Combined exercise list for selection
 const exercises = [
-  ...LONG_EXERCISES.map(ex => ({ value: ex, label: ex })),
-  ...SHORT_EXERCISES.map(ex => ({ value: ex, label: ex }))
+  ...LONG_EXERCISES.map((ex) => ({ value: ex, label: ex })),
+  ...SHORT_EXERCISES.map((ex) => ({ value: ex, label: ex })),
 ];
-
 interface ModeTimeline {
   mode: ActiveMode;
   startTime: number;
   endTime: number;
 }
 
-export interface SetDataPoint {
+type SetDataPoint = {
   time: number;
   weight: number;
-}
-
-export interface IronManProps {
-  connected?: boolean;
-  message?: string;
-}
+};
 
 export function IronMan({
   connected = false,
-  message = "0",
-}: IronManProps) {
-  const { time } = useTimer(0, !connected);
+  message,
+}: {
+  connected: boolean;
+  message: any;
+}) {
+  const freezeTime = !connected;
+  const { time } = useTimer(0, freezeTime);
 
   const [trainingData, setTrainingData] = useState<
-    Record<number, SetDataPoint[]>
-  >({});
+    Record<string, Record<number, SetDataPoint[]>>
+  >(DEFAULT_TRAINING_DATA);
+
+  const [feedbackData, setFeedbackData] = useState<SetDataPoint[]>([]);
+
+  const [tab, setTab] = useState<"feedback" | "training">("feedback");
 
   const [set, setSet] = useState({
-    current: -1,
-    selected: -1,
+    current: 1,
+    selected: 1,
   });
 
+  const [maxWeights, setMaxWeights] = useState<Record<string, number>>({});
+
   const [selectedExercise, setSelectedExercise] = useState<string>("");
+
   const [modeTimeline, setModeTimeline] = useState<ModeTimeline>({
     mode: ActiveMode.DEFAULT,
     startTime: 0,
-    endTime: Date.now() + FEEDBACK_TIME,
+    endTime: Date.now() + DEFAULT_TIME,
   });
 
-  // Save training data
-  const saveTraining = async (type: "normal" | "emergency" = "normal") => {
-    if (Object.keys(trainingData).length === 0) return;
-
-    if (type === "normal") {
-      await soundService.play("finish");
-    }
-
-    const saved = await saveTrainingData({
-      trainingData,
-      time,
-      selectedExercise,
-    });
-
-    if (saved) {
-      console.log("Данные тренировки успешно сохранены");
-    } else {
-      console.error("Ошибка при сохранении данных тренировки");
-    }
-  };
-
-  // Handle training button click
-  const handleTrainingToggle = () => {
+  const stopExercise = async () => {
     if (!connected) {
       alert("Пожалуйста, подключите тренажер перед началом тренировки");
       return;
     }
 
-    if (modeTimeline.mode === ActiveMode.FEEDBACK) {
-      setSet({
-        current: 1,
-        selected: 1,
-      });
-      setTrainingData({});
-      setModeTimeline({
-        mode: ActiveMode.PREPARING,
-        startTime: time,
-        endTime: time + PREPARE_TIME,
-      });
-      return;
-    }
+    setModeTimeline({ 
+      mode: ActiveMode.DEFAULT,
+      startTime: time,
+      endTime: time + DEFAULT_TIME,
+    });
 
-    if (
-      modeTimeline.mode === ActiveMode.SET ||
-      modeTimeline.mode === ActiveMode.REST
-    ) {
-      saveTraining();
-      setSet((prev) => ({
-        ...prev,
-        selected: -1,
-      }));
-      setModeTimeline({
-        mode: ActiveMode.FEEDBACK,
-        startTime: time,
-        endTime: time + FEEDBACK_TIME,
-      });
-      return;
-    }
+    // await generateTrainingReport(trainingData, 'Железный человек');
+
+    setMaxWeights((prev) => {
+      const newMaxWeights = { ...prev };
+      delete newMaxWeights[selectedExercise];
+      return newMaxWeights;
+    });
+
+    await soundService.play("exersise_finished");
   };
 
-  // Get average weight for a set (Iron Man focuses on average, not max)
-  const getAverageWeight = (setNumber: number) => {
-    const setData = trainingData[setNumber] || [];
-    if (setData.length === 0) return 0;
-    
-    const sum = setData.reduce((acc, point) => acc + point.weight, 0);
-    return sum / setData.length;
+  const startTraining = () => {
+    if (!connected) return;
+
+    setTab("training");
+    setTrainingData(DEFAULT_TRAINING_DATA);
+    setSet({
+      current: 1,
+      selected: 1,
+    });
+    setModeTimeline({
+      mode: ActiveMode.PREPARING,
+      startTime: time,
+      endTime: time + PREPARE_TIME,
+    });
   };
 
-  // Get average weight for all sets
-  const getOverallAverageWeight = () => {
-    const allSetNumbers = Object.keys(trainingData).map(Number);
-    if (allSetNumbers.length === 0 || allSetNumbers.includes(-1)) return 0;
-    
-    const averages = allSetNumbers.map(setNum => getAverageWeight(setNum));
-    const sum = averages.reduce((acc, avg) => acc + avg, 0);
-    return sum / averages.length;
-  };
+  const dataForRender =
+    tab === "feedback"
+      ? feedbackData
+      : trainingData[selectedExercise]?.[1] || [];
 
-  // Get average weight for selected set
-  const getSelectedSetAverageWeight = () => {
-    return getAverageWeight(set.selected);
-  };
-
-  // Get current exercise based on set number
-  const getCurrentExercise = (setNumber: number) => {
-    if (setNumber <= 3) {
-      return LONG_EXERCISES[setNumber - 1];
-    } else {
-      return SHORT_EXERCISES[setNumber - 4];
-    }
-  };
-
-  // Get set duration based on set number
-  const getSetDuration = (setNumber: number) => {
-    return setNumber <= 3 ? LONG_SET_TIME : SHORT_SET_TIME;
-  };
-
-  // Get chart data
-  const getChartData = () => {
-    const data = trainingData[set.selected] || [];
-    const limitedData = data.slice(-50);
-
-    const title = set.selected === -1 
-      ? "Текущие показания" 
-      : `${getCurrentExercise(set.selected)} (Подход ${set.selected})`;
-
+  // Получение данных для графика
+  const getTrainingChartData = () => {
+    const limitedData = dataForRender.slice(-50);
     return {
       xAxis: limitedData.map((data) => data.time),
       yAxis: limitedData.map((data) => data.weight),
-      title,
+      title: `Подход ${set.selected}`,
     };
   };
 
-  const { xAxis, yAxis, title } = getChartData();
+  const { xAxis, yAxis, title } = getTrainingChartData();
 
-  // Initialize sound service
   useEffect(() => {
     soundService.initialize();
   }, []);
 
-  // Play sounds on mode changes
-  const currentSet = set.current;
+  const diapason = LONG_EXERCISES.includes(selectedExercise) ? 20 : 40;
+
   useEffect(() => {
-    if (modeTimeline.mode === ActiveMode.REST) {
-      playSound("rest");
+    if (modeTimeline.mode === ActiveMode.PREPARING) {
+      soundService.play("prepare_with_max");
+    } else if (modeTimeline.mode === ActiveMode.CHECK_MAX_WEIGHT) {
+      soundService.play("start_with_max");
     } else if (modeTimeline.mode === ActiveMode.SET) {
-      playSound("start");
-    } else if (modeTimeline.mode === ActiveMode.PREPARING) {
-      playSound("prepare");
+      if (diapason === 20) {
+        soundService.play("start_with_120_sec");
+      } else {
+        soundService.play("start_with_60_sec");
+      }
     }
-  }, [modeTimeline.mode, currentSet, playSound]);
+  }, [modeTimeline.mode, diapason]);
 
-  // Handle connection state changes
   const previousConnected = usePrevious(connected);
-  useEffect(() => {
-    if (!connected && previousConnected) {
-      setTrainingData({});
-      setSet({
-        current: -1,
-        selected: -1,
-      });
-      setModeTimeline({
-        mode: ActiveMode.FEEDBACK,
-        startTime: 0,
-        endTime: time + FEEDBACK_TIME,
-      });
-    }
-  }, [connected, previousConnected, time]);
 
-  // Main training logic and state management
+  if (!connected && previousConnected !== connected) {
+    setSet({
+      current: 1,
+      selected: 1,
+    });
+    setModeTimeline({
+      mode: ActiveMode.DEFAULT,
+      startTime: 0,
+      endTime: time + DEFAULT_TIME,
+    });
+    setFeedbackData([]);
+  }
+
   const previousTime = usePrevious(time);
-  useEffect(() => {
-    if (time !== previousTime && connected) {
-      // Process device data
-      if (modeTimeline.mode === ActiveMode.FEEDBACK) {
-        setTrainingData((prev) => ({
-          ...prev,
-          [-1]: [...(prev[-1] || []), { time, weight: parseFloat(message) }],
-        }));
-      } else if (modeTimeline.mode === ActiveMode.SET) {
-        setTrainingData((prev) => ({
-          ...prev,
+
+  if (time !== previousTime && connected) {
+    // Обработка данных от тренажера
+    if (modeTimeline.mode === ActiveMode.DEFAULT) {
+      setFeedbackData((prev) => [
+        ...prev,
+        { time, weight: parseFloat(message) },
+      ]);
+    } else if (modeTimeline.mode === ActiveMode.CHECK_MAX_WEIGHT) {
+      setMaxWeights((prev) => ({
+        ...prev,
+        [selectedExercise]: Math.max(
+          prev[selectedExercise] || 0,
+          parseFloat(message)
+        ),
+      }));
+    } else if (modeTimeline.mode === ActiveMode.SET) {
+      setTrainingData((prev) => ({
+        ...prev,
+        [selectedExercise]: {
+          ...prev[selectedExercise],
           [set.current]: [
-            ...(prev[set.current] || []),
+            ...(prev[selectedExercise][set.current] || []),
             { time, weight: parseFloat(message) },
           ],
-        }));
-      }
+        },
+      }));
+    }
+    // Обработка перехода между режимами
+    if (time >= modeTimeline.endTime && connected) {
+      switch (modeTimeline.mode) {
+        case ActiveMode.PREPARING:
+          setModeTimeline({
+            mode: ActiveMode.CHECK_MAX_WEIGHT,
+            startTime: time,
+            endTime: time + CHECK_MAX_WEIGHT_TIME,
+          });
+          break;
+        case ActiveMode.CHECK_MAX_WEIGHT:
+          setModeTimeline({
+            mode: ActiveMode.SET,
+            startTime: time,
+            endTime: time + (diapason === 20 ? SET_TIME : SET_TIME / 2),
+          });
+          break;
 
-      // Handle mode transitions
-      if (time >= modeTimeline.endTime && connected) {
-        switch (modeTimeline.mode) {
-          case ActiveMode.PREPARING:
-            setModeTimeline({
-              mode: ActiveMode.SET,
-              startTime: time,
-              endTime: time + getSetDuration(set.current),
-            });
-            break;
+        case ActiveMode.SET:
+            stopExercise();
+          break;
 
-          case ActiveMode.SET:
-            if (set.current >= SET_COUNT) {
-              setModeTimeline({
-                mode: ActiveMode.FEEDBACK,
-                startTime: time,
-                endTime: time + FEEDBACK_TIME,
-              });
-              saveTraining();
-            } else {
-              setModeTimeline({
-                mode: ActiveMode.REST,
-                startTime: time,
-                endTime: time + REST_TIME,
-              });
-            }
-            break;
-
-          case ActiveMode.REST:
-            setModeTimeline({
-              mode: ActiveMode.SET,
-              startTime: time,
-              endTime: time + getSetDuration(set.current + 1),
-            });
-            setSet((prev) => ({
-              ...prev,
-              current: prev.current + 1,
-              selected: prev.current + 1,
-            }));
-            break;
-
-          default:
-            break;
-        }
+        default:
+          break;
       }
     }
-  }, [time, previousTime, connected, message, modeTimeline.endTime, modeTimeline.mode, set.current]);
+  }
 
   return (
     <Container maxWidth="lg" sx={{ p: 0 }}>
@@ -308,99 +292,288 @@ export function IronMan({
         Железный человек (Iron Man)
       </Typography>
       <IronManDescription />
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: { xs: "center", md: "center" },
+          flex: { xs: "1 1 100%", md: 1 },
+          mt: { xs: 3, md: 0 },
+          mb: 6,
+        }}
+      >
+        <FileOperations
+          disabled={modeTimeline.mode !== ActiveMode.DEFAULT}
+          trainingData={trainingData}
+          hasData={Object.values(trainingData).some(exercise => Object.values(exercise).some(set => set.length > 0))}
+          onDataRestored={(data) => {
+            setTab("training");
+            setTrainingData(data);
+          }}
+          name="Железный человек"
+        />
+      </Box>
 
       <Box
         sx={{
           display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          mb: 10,
-          p: 2,
-          mt: 12,
+          flexDirection: { xs: "column", md: "row" },
+          width: "100%",
           gap: 2,
+          mb: 2,
         }}
       >
+        <Card
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: { xs: "center", md: "center" },
+            justifyContent: "center",
+            gap: 2,
+            flex: { xs: "1 1 100%", md: 2 },
+            p: 4,
+            borderRadius: 4,
+          }}
+        >
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: { xs: "center", md: "center" },
+              alignItems: "center",
+              gap: 2,
+              flexWrap: "wrap",
+              mb: 2,
+            }}
+          >
+            <ExerciseSelect
+              disabled={
+                modeTimeline.mode !== ActiveMode.DEFAULT 
+              }
+              value={selectedExercise}
+              onChange={setSelectedExercise}
+              exercises={exercises}
+            />
+
+            <Button
+              variant="contained"
+              size="large"
+              startIcon={
+                modeTimeline.mode !== ActiveMode.DEFAULT ? (
+                  <Square size={24} />
+                ) : (
+                  <Play size={24} />
+                )
+              }
+              onClick={() => {
+                if (modeTimeline.mode === ActiveMode.SET) {
+                  stopExercise();
+                } else {
+                  startTraining();
+                }
+              }}
+              disabled={
+                !connected ||
+                modeTimeline.mode === ActiveMode.PREPARING ||
+                !selectedExercise
+              }
+              sx={{
+                borderRadius: "28px",
+                padding: "12px 32px",
+                backgroundColor:
+                  modeTimeline.mode !== ActiveMode.DEFAULT
+                    ? "#ff4444"
+                    : "#4CAF50",
+                "&:hover": {
+                  backgroundColor:
+                    modeTimeline.mode !== ActiveMode.DEFAULT
+                      ? "#ff0000"
+                      : "#45a049",
+                },
+              }}
+            >
+              {modeTimeline.mode !== ActiveMode.DEFAULT
+                ? "Завершить упражнение"
+                : "Начать упражнение"}
+            </Button>
+          </Box>
+
+          <Typography
+            variant="body1"
+            sx={{
+              color: "text.secondary",
+              textAlign: "center",
+              fontSize: "20px",
+              maxWidth: "600px",
+              padding: "8px 16px",
+              borderRadius: "8px",
+              mb: 2,
+              backgroundColor: "rgba(0, 0, 0, 0.03)",
+            }}
+          >
+            {getStatusMessage(modeTimeline.mode, connected)}
+          </Typography>
+
+          {modeTimeline.mode !== ActiveMode.DEFAULT && (
+            <TrainingTimer
+              totalTime={modeTimeline.endTime - modeTimeline.startTime}
+              time={modeTimeline.endTime - time}
+              color={MODE_COLORS[modeTimeline.mode]}
+            />
+          )}
+        </Card>
+
         <Box
           sx={{
             display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
+            flexDirection: "column",
             gap: 2,
-            flexWrap: "wrap",
+            flex: { xs: "1 1 100%", md: 1 },
+            maxWidth: { xs: "100%", md: "380px" },
           }}
         >
-          <ExerciseSelect
-            disabled={modeTimeline.mode !== ActiveMode.FEEDBACK || !connected}
-            value={selectedExercise}
-            onChange={setSelectedExercise}
-            exercises={exercises}
-          />
-
-          <Button
-            variant="contained"
-            size="large"
-            startIcon={
-              modeTimeline.mode !== ActiveMode.FEEDBACK ? (
-                <Square size={24} />
-              ) : (
-                <Play size={24} />
-              )
-            }
-            onClick={handleTrainingToggle}
-            disabled={
-              !connected ||
-              modeTimeline.mode === ActiveMode.PREPARING ||
-              !selectedExercise
-            }
+          <Card
             sx={{
-              borderRadius: "28px",
-              padding: "12px 32px",
-              backgroundColor:
-                modeTimeline.mode !== ActiveMode.FEEDBACK
-                  ? "#ff4444"
-                  : "#4CAF50",
-              "&:hover": {
-                backgroundColor:
-                  modeTimeline.mode !== ActiveMode.FEEDBACK
-                    ? "#ff0000"
-                    : "#45a049",
-              },
+              display: "flex",
+              flexDirection: "column",
+              borderRadius: 4,
+              transition: "all 0.3s ease",
+              p: 4,
+              flexGrow: 1,
+              backgroundColor: (() => {
+                if (modeTimeline.mode !== ActiveMode.SET)
+                  return "none";
+
+                const currentValue = maxWeights[selectedExercise]
+                  ? Math.round(
+                      (Number(message) / maxWeights[selectedExercise]) * 100
+                    )
+                  : 0;
+                  
+                if (currentValue === 0) return "none";
+                return Math.abs(currentValue - diapason) > 5
+                  ? "rgb(120, 18, 18)"
+                  : "rgb(35, 142, 39)";
+              })(),
             }}
           >
-            {modeTimeline.mode !== ActiveMode.FEEDBACK
-              ? "Остановить тренировку"
-              : "Начать тренировку"}
-          </Button>
+            <CardContent
+              sx={{
+                flexGrow: 1,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                align="center"
+                sx={{ mb: 1 }}
+              >
+                Диапазон
+              </Typography>
+              <Typography
+                variant="h1"
+                align="center"
+                sx={{ fontWeight: "bold" }}
+              >
+                {`${
+                  maxWeights[selectedExercise] &&
+                  modeTimeline.mode === ActiveMode.SET
+                    ? Math.round(
+                        (Number(message) / maxWeights[selectedExercise]) *
+                          100
+                      )
+                    : "0"
+                } %`}
+              </Typography>
+            </CardContent>
+          </Card>
+          
+          <Card
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              borderRadius: 4,
+              transition: "all 0.3s ease",
+              p: 4,
+              flexGrow: 1,
+            }}
+          >
+            <CardContent
+              sx={{
+                flexGrow: 1,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                align="center"
+                sx={{ mb: 1 }}
+              >
+                Измеренный максимум
+              </Typography>
+              <Typography
+                variant="h1"
+                align="center"
+                sx={{ fontWeight: "bold" }}
+              >
+                {`${maxWeights[selectedExercise]?.toFixed(1) || 0} кг`}
+              </Typography>
+            </CardContent>
+          </Card>
         </Box>
-
-
-
-        <Typography
-          variant="body1"
-          sx={{
-            color: "text.secondary",
-            textAlign: "center",
-            fontSize: "20px",
-            maxWidth: "600px",
-            padding: "8px 16px",
-            borderRadius: "8px",
-            mb: 2,
-            backgroundColor: "rgba(0, 0, 0, 0.03)",
-          }}
-        >
-          {getStatusMessage(modeTimeline.mode, connected)}
-          {modeTimeline.mode === ActiveMode.SET && ` - ${getCurrentExercise(set.current)}`}
-        </Typography>
-
-        {modeTimeline.mode !== ActiveMode.FEEDBACK && (
-          <TrainingTimer
-            totalTime={modeTimeline.endTime - modeTimeline.startTime}
-            time={modeTimeline.endTime - time}
-            color={MODE_COLORS[modeTimeline.mode]}
-          />
-        )}
       </Box>
 
+      <Box sx={{ borderBottom: 0, borderColor: "divider", mb: 2 }}>
+        <Tabs
+          value={tab}
+          onChange={(_, newValue) => setTab(newValue)}
+          sx={{
+            "& .MuiTabs-indicator": {
+              display: "none",
+            },
+          }}
+        >
+          <Tab
+            disabled={!connected}
+            label="Реалтайм показания"
+            value="feedback"
+            sx={{
+              borderRadius: "28px",
+              marginRight: 1,
+              transition: "background-color 0.3s",
+              "&.Mui-selected": {
+                backgroundColor: "#323232",
+                color: "white",
+              },
+              "&:not(.Mui-selected)": {
+                backgroundColor: "transparent",
+              },
+            }}
+          />
+          <Tab
+            disabled={!connected}
+            label="Данные тренировки"
+            value="training"
+            sx={{
+              borderRadius: "28px",
+              transition: "background-color 0.3s",
+              "&.Mui-selected": {
+                backgroundColor: "#323232",
+                color: "white",
+              },
+              "&:not(.Mui-selected)": {
+                backgroundColor: "transparent",
+              },
+            }}
+          />
+        </Tabs>
+      </Box>
       <Box
         sx={{
           display: "flex",
@@ -408,44 +581,33 @@ export function IronMan({
           gap: 4,
         }}
       >
-        <Grid container spacing={2} sx={{ flex: 1 }}>
-          <Grid item xs={12} md={12}>
-            <MetricCard
-              title={`${
-                set.selected === -1
-                  ? "Средний вес в режиме обратной связи"
-                  : `Средний вес в подходе № ${set.selected}`
-              }`}
-              value={getSelectedSetAverageWeight().toFixed(1)}
-              unit="кг"
+        <Box sx={{ flex: 1 }}>
+          {tab === "training" && (
+            <Chart
+              xAxis={xAxis}
+              yAxis={yAxis}
+              title={title}
+              sets={
+                Object.keys(trainingData[selectedExercise] ?? {})?.length ?? 1
+              }
+              selectedSet={set.selected}
+              onSetChange={(set) =>
+                setSet((prev) => ({ ...prev, selected: set }))
+              }
             />
-          </Grid>
-
-          <Grid item xs={12} md={12}>
-            <MetricCard
-              title="Средний вес за всю тренировку"
-              value={getOverallAverageWeight().toFixed(1)}
-              unit="кг"
+          )}
+          {tab === "feedback" && (
+            <Chart
+              xAxis={feedbackData.map((d) => d.time)}
+              yAxis={feedbackData.map((d) => d.weight)}
+              title="Обратная связь"
+              sets={1}
+              selectedSet={1}
+              onSetChange={() => {}}
             />
-          </Grid>
-        </Grid>
-
-        <Box sx={{ flex: 2 }}>
-          <Chart
-            xAxis={xAxis}
-            yAxis={yAxis}
-            title={title}
-            isTrainingActive={
-              modeTimeline.mode === ActiveMode.SET ||
-              modeTimeline.mode === ActiveMode.REST
-            }
-            selectedSet={set.selected}
-            onSetChange={(set) =>
-              setSet((prev) => ({ ...prev, selected: set }))
-            }
-          />
+          )}
         </Box>
       </Box>
     </Container>
   );
-} 
+}

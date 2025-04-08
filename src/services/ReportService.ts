@@ -55,7 +55,7 @@ const calculateExerciseStats = (exerciseData: Record<number, SetDataPoint[]>): E
   };
 };
 
-export const generateTrainingReport = async (trainingData: TrainingData) => {
+export const generateTrainingReport = async (trainingData: TrainingData, name: string) => {
   try {
     // Проверяем, есть ли данные для отчета
     const hasAnyData = Object.values(trainingData).some(exerciseData => 
@@ -67,7 +67,7 @@ export const generateTrainingReport = async (trainingData: TrainingData) => {
       return false;
     }
 
-    let report = "ОТЧЕТ О ТРЕНИРОВКЕ\n";
+    let report = `ОТЧЕТ О ТРЕНИРОВКЕ ${name}\n`;
     report += "=================\n\n";
     report += `Дата: ${new Date().toLocaleDateString("ru-RU")}\n`;
     report += `Время создания: ${new Date().toLocaleTimeString("ru-RU")}\n\n`;
@@ -95,14 +95,13 @@ export const generateTrainingReport = async (trainingData: TrainingData) => {
           report += `\nПодход №${setStat.setNumber}:\n`;
           report += `  - Максимальный вес: ${setStat.maxWeight.toFixed(1)} кг\n`;
           report += `  - Среднее значение: ${setStat.avgWeight.toFixed(1)} кг\n`;
-          report += `  - Количество измерений: ${setStat.dataPoints}\n`;
         }
       });
       
       report += "\n=================\n\n";
     }
 
-    const fileName = `training_report_${new Date().toISOString().split('.')[0]}.txt`;
+    const fileName = `Отчет о тренировке от ${new Date().toLocaleDateString("ru-RU")}.txt`;
     const blob = new Blob([report], { type: "text/plain;charset=utf-8" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);

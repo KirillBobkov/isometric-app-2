@@ -13,7 +13,7 @@ import {
   TableBody,
   Paper
 } from "@mui/material";
-import { InfoCard } from '../../InfoCard';
+import { Card } from "@mui/material";
 
 export function MilitaryPowerDescription() {
   const [isContentVisible, setIsContentVisible] = useState(false);
@@ -48,7 +48,7 @@ export function MilitaryPowerDescription() {
           <Grid container spacing={4} mb={8}>
             {/* О программе */}
             <Grid item xs={12} md={6}>
-              <InfoCard>
+              <Card sx={{ borderRadius: 4, p: 4 }}>
                 <Typography
                   variant="h5"
                   align="center"
@@ -75,12 +75,12 @@ export function MilitaryPowerDescription() {
                   показывает ваш прогресс, создает графики ваших усилий и позволяет сохранять результаты 
                   тренировок для последующего анализа.`}
                 </Typography>
-              </InfoCard>
+              </Card>
             </Grid>
 
             {/* Особенности программы */}
             <Grid item xs={12} md={6}>
-              <InfoCard>
+              <Card sx={{ borderRadius: 4, p: 4 }}  >
                 <Typography
                   variant="h5"
                   align="center"
@@ -149,12 +149,12 @@ export function MilitaryPowerDescription() {
                 >
                   * выполняется под другим углом
                 </Typography>
-              </InfoCard>
+              </Card>
             </Grid>
 
             {/* Как выполнять */}
             <Grid item xs={12} md={6}>
-              <InfoCard>
+              <Card sx={{ borderRadius: 4, p: 4 }}  >
                 <Typography
                   variant="h5"
                   align="center"
@@ -192,12 +192,12 @@ export function MilitaryPowerDescription() {
                     6. После завершения тренировки вы можете сохранить результаты в файл или сгенерировать текстовый отчет для анализа.
                   </Typography>
                 </Box>
-              </InfoCard>
+              </Card>
             </Grid>
 
             {/* Техника выполнения */}
             <Grid item xs={12} md={6}>
-              <InfoCard>
+              <Card sx={{ borderRadius: 4, p: 4 }}    >
                 <Typography
                   variant="h5"
                   align="center"
@@ -235,7 +235,7 @@ export function MilitaryPowerDescription() {
                     • В карточках справа от графика отображаются максимальные показатели для текущего подхода и всей тренировки
                   </Typography>
                 </Box>
-              </InfoCard>
+              </Card>
             </Grid>
           </Grid>
         </Box>
