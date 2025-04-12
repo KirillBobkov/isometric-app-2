@@ -84,11 +84,11 @@ export const FileOperations: React.FC<FileOperationsProps> = ({
         flexWrap: "wrap",
       }}
     >
-      <Tooltip
+      {/* <Tooltip
         title="Сгенерировать подробный текстовый отчет с анализом тренировки по всем подходам"
         arrow
       >
-        <span> {/* Wrapper для корректной работы Tooltip с disabled кнопкой */}
+        <span>
           <Button
             variant="contained"
             size="large"
@@ -104,7 +104,7 @@ export const FileOperations: React.FC<FileOperationsProps> = ({
             Скачать текстовый отчет
           </Button>
         </span>
-      </Tooltip>
+      </Tooltip> */}
       
       <Tooltip
         title="Сохранится файл формата .json который можно будет загрузить при следующем сеансе и просмотреть каждый подход"

@@ -26,7 +26,7 @@ import { soundService } from "./services/SoundService";
 import { MilitaryPower } from "./components/programs/MilitaryPower/index";
 import { ArrowLeftIcon } from "lucide-react";
 
-const bluetoothService = new BluetoothService();
+const bluetoothService = new MockBluetoothService();
 
 export default function App() {
   const [connected, setConnected] = useState(false);

@@ -4,10 +4,10 @@ import {
   Container,
   Typography,
   Box,
-  Tabs,
-  Tab,
   Card,
   CardContent,
+  Switch,
+  styled,
 } from "@mui/material";
 import { Play, Square } from "lucide-react";
 
@@ -87,6 +87,32 @@ const DEFAULT_TRAINING_DATA = {
   },
 };
 
+const StyledSwitch = styled(Switch)(() => ({
+  width: 70,
+  height: 48,
+  padding: 8,
+  "& .MuiSwitch-switchBase": {
+    padding: 11,
+    "&.Mui-checked": {
+      transform: "translateX(22px)",
+      "& + .MuiSwitch-track": {
+        backgroundColor: "#323232",
+        opacity: 1
+      }
+    }
+  },
+  "& .MuiSwitch-thumb": {
+    width: 26,
+    height: 26,
+    backgroundColor: "#fff"
+  },
+  "& .MuiSwitch-track": {
+    borderRadius: 24,
+    backgroundColor: "#323232",
+    opacity: 1
+  }
+}));
+
 export function MilitaryPower({
   connected = false,
   message,
@@ -124,7 +150,7 @@ export function MilitaryPower({
       return;
     }
 
-    await generateTrainingReport(trainingData, 'Солдатская мощь');
+    await generateTrainingReport(trainingData, "Солдатская мощь");
 
     await soundService.play("finish");
 
@@ -305,7 +331,9 @@ export function MilitaryPower({
         <FileOperations
           disabled={modeTimeline.mode !== ActiveMode.DEFAULT}
           trainingData={trainingData}
-          hasData={Object.values(trainingData).some(exercise => Object.values(exercise).some(set => set.length > 0))}
+          hasData={Object.values(trainingData).some((exercise) =>
+            Object.values(exercise).some((set) => set.length > 0)
+          )}
           onDataRestored={(data) => {
             setTab("training");
             setTrainingData(data);
@@ -346,9 +374,7 @@ export function MilitaryPower({
             }}
           >
             <ExerciseSelect
-              disabled={
-                modeTimeline.mode !== ActiveMode.DEFAULT || !connected
-              }
+              disabled={modeTimeline.mode !== ActiveMode.DEFAULT || !connected}
               value={selectedExercise}
               onChange={setSelectedExercise}
               exercises={exercises}
@@ -398,7 +424,7 @@ export function MilitaryPower({
                 ? "Остановить тренировку"
                 : "Начать тренировку"}
             </Button>
-          </Box>  
+          </Box>
 
           <Typography
             variant="body1"
@@ -470,7 +496,7 @@ export function MilitaryPower({
               </Typography>
             </CardContent>
           </Card>
-          
+
           <Card
             sx={{
               display: "flex",
@@ -510,50 +536,18 @@ export function MilitaryPower({
         </Box>
       </Box>
 
-      <Box sx={{ borderBottom: 0, borderColor: "divider", mb: 2 }}>
-        <Tabs
-          value={tab}
-          onChange={(_, newValue) => setTab(newValue)}
-          sx={{
-            "& .MuiTabs-indicator": {
-              display: "none",
-            },
-          }}
-        >
-          <Tab
-            disabled={!connected}
-            label="Реалтайм показания"
-            value="feedback"
-            sx={{
-              borderRadius: "28px",
-              marginRight: 1,
-              transition: "background-color 0.3s",
-              "&.Mui-selected": {
-                backgroundColor: "#323232",
-                color: "white",
-              },
-              "&:not(.Mui-selected)": {
-                backgroundColor: "transparent",
-              },
-            }}
-          />
-          <Tab
-            disabled={!connected}
-            label="Данные тренировки"
-            value="training"
-            sx={{
-              borderRadius: "28px",
-              transition: "background-color 0.3s",
-              "&.Mui-selected": {
-                backgroundColor: "#323232",
-                color: "white",
-              },
-              "&:not(.Mui-selected)": {
-                backgroundColor: "transparent",
-              },
-            }}
-          />
-        </Tabs>
+      <Box sx={{ mb: 2, display: "flex", justifyContent: "center", gap: 2, alignItems: "center" }}>
+        <Typography sx={{ color: tab === "feedback" ? "#323232" : "#666" }}>
+          Обратная связь
+        </Typography>
+        <StyledSwitch
+          disabled={!connected}
+          checked={tab === "training"}
+          onChange={(e) => setTab(e.target.checked ? "training" : "feedback")}
+        />
+        <Typography sx={{ color: tab === "training" ? "#323232" : "#666" }}>
+          Тренировка
+        </Typography>
       </Box>
       <Box
         sx={{
