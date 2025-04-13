@@ -12,6 +12,7 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  SelectChangeEvent,
 } from "@mui/material";
 
 import { Play, Square } from "lucide-react";
@@ -22,6 +23,8 @@ import { TrainingTimer } from "../../TrainingTimer";
 import { Chart } from "../../Chart";
 import { soundService } from "../../../services/SoundService";
 import { usePrevious } from "../../../hooks/usePrevious";
+import { mergeData } from "../../../utils/mergeData";
+import { formatDate } from "../../../utils/dateUtils";
 
 import { ExerciseSelect } from "../../common/ExerciseSelect";
 import { FileOperations } from "../../common/FileOperations";
@@ -47,10 +50,7 @@ export const SET_TIME = 6000;
 export const PREPARE_TIME = 10000;
 export const DEFAULT_TIME = 31536000000;
 
-export const getStatusMessage = (
-  mode: ActiveMode,
-  isConnected: boolean
-): string => {
+const getStatusMessage = (mode: ActiveMode, isConnected: boolean): string => {
   if (!isConnected) return "Подключите тренажер для начала тренировки";
 
   switch (mode) {
@@ -125,7 +125,7 @@ export function MilitaryPower({
   const [selectedDate, setSelectedDate] = useState<number>(currentDay);
   const [programData, setProgramData] = useState<ProgramData>(() => {
     const storedData = LocalStorageService.getProgramData("MILITARY_POWER");
-    return storedData ?? defaultMilitaryPowerData;
+    return mergeData(storedData, defaultMilitaryPowerData);
   });
 
   const [feedbackData, setFeedbackData] = useState<SetDataPoint[]>([]);
@@ -185,6 +185,40 @@ export function MilitaryPower({
     });
   };
 
+  const handleExerciseChange = (value: string) => {
+    setSelectedExercise(
+      value as "MILITARY_DEADLIFT" | "MILITARY_SHOULDER_PRESS"
+    );
+    setTab("training");
+  };
+
+  const handleTrainingButton = () =>
+    trainigInProgress ? stopTraining() : startTraining();
+
+  const handleTabChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setTab(event.target.checked ? "training" : "feedback");
+  };
+
+  const handleDateChange = (event: SelectChangeEvent) => {
+    setSelectedDate(Number(event.target.value));
+    setSet((prev) => ({
+      ...prev,
+      selected: 1,
+    }));
+  };
+
+  const handleSetChange = (event: SelectChangeEvent) => {
+    setSet((prev) => ({
+      ...prev,
+      selected: Number(event.target.value),
+    }));
+  };
+
+  const onRestore = (data: ProgramData) => {
+    setTab("training");
+    setProgramData(data);
+  };
+
   const dataForRender =
     tab === "feedback"
       ? feedbackData
@@ -231,7 +265,6 @@ export function MilitaryPower({
     soundService.initialize();
   }, []);
 
-  const currentSet = set.current;
   useEffect(() => {
     if (modeTimeline.mode === ActiveMode.REST) {
       soundService.play("rest");
@@ -242,7 +275,7 @@ export function MilitaryPower({
     } else if (modeTimeline.mode === ActiveMode.FINISH) {
       soundService.play("finish");
     }
-  }, [modeTimeline.mode, currentSet]);
+  }, [modeTimeline.mode]);
 
   const previousConnected = usePrevious(connected);
 
@@ -268,16 +301,19 @@ export function MilitaryPower({
         { time, weight: parseFloat(message) },
       ]);
     } else if (modeTimeline.mode === ActiveMode.SET) {
-      setProgramData((prev) => {
-        const newProgramData = { ...prev };
-
-        newProgramData[selectedDate]?.[selectedExercise]?.[set.current].push({
-          time,
-          weight: parseFloat(message),
-        });
-
-        return newProgramData;
-      });
+      setProgramData((prev) => ({
+        ...prev,
+        [selectedDate]: {
+          ...(prev[selectedDate] || {}),
+          [selectedExercise]: {
+            ...(prev[selectedDate]?.[selectedExercise] || {}),
+            [set.current]: [
+              ...(prev[selectedDate]?.[selectedExercise]?.[set.current] || []),
+              { time, weight: parseFloat(message) },
+            ],
+          },
+        },
+      }));
     }
     // Обработка перехода между режимами
     if (time >= modeTimeline.endTime && connected) {
@@ -355,10 +391,7 @@ export function MilitaryPower({
         <FileOperations
           programKey="MILITARY_POWER"
           disabled={trainigInProgress}
-          onDataRestored={(data) => {
-            setTab("training");
-            setProgramData(data);
-          }}
+          onDataRestored={onRestore}
         />
       </Box>
       <Box
@@ -395,12 +428,7 @@ export function MilitaryPower({
             <ExerciseSelect
               disabled={trainigInProgress}
               value={selectedExercise}
-              onChange={(value) => {
-                setSelectedExercise(
-                  value as "MILITARY_DEADLIFT" | "MILITARY_SHOULDER_PRESS"
-                );
-                setTab("training");
-              }}
+              onChange={handleExerciseChange}
               exercises={[
                 { value: "MILITARY_DEADLIFT", label: "СТАНОВАЯ ТЯГА" },
                 { value: "MILITARY_SHOULDER_PRESS", label: "ЖИМ ПЛЕЧ" },
@@ -413,13 +441,7 @@ export function MilitaryPower({
               startIcon={
                 trainigInProgress ? <Square size={24} /> : <Play size={24} />
               }
-              onClick={() => {
-                if (trainigInProgress) {
-                  stopTraining();
-                } else {
-                  startTraining();
-                }
-              }}
+              onClick={handleTrainingButton}
               disabled={
                 !connected ||
                 modeTimeline.mode === ActiveMode.PREPARING ||
@@ -562,10 +584,7 @@ export function MilitaryPower({
         <Typography sx={{ color: tab === "feedback" ? "#ffffff" : "#666" }}>
           Обратная связь
         </Typography>
-        <StyledSwitch
-          checked={tab === "training"}
-          onChange={(e) => setTab(e.target.checked ? "training" : "feedback")}
-        />
+        <StyledSwitch checked={tab === "training"} onChange={handleTabChange} />
         <Typography sx={{ color: tab === "training" ? "#ffffff" : "#666" }}>
           Запись тренировки
         </Typography>
@@ -599,22 +618,16 @@ export function MilitaryPower({
                       </InputLabel>
                       <Select
                         labelId="date-select-label"
-                        value={selectedDate}
+                        value={selectedDate.toString()}
                         label="Выберите дату"
-                        onChange={(e) =>
-                          setSelectedDate(Number(e.target.value))
-                        }
+                        onChange={handleDateChange}
                         size="small"
                       >
                         {Object.keys(programData)
                           .map(Number)
                           .map((date) => (
                             <MenuItem key={date} value={date}>
-                              {new Date(date).toLocaleDateString("ru-RU", {
-                                day: "numeric",
-                                month: "long",
-                                year: "numeric",
-                              })}
+                              {formatDate(date)}
                             </MenuItem>
                           ))}
                       </Select>
@@ -629,14 +642,9 @@ export function MilitaryPower({
                         </InputLabel>
                         <Select
                           labelId="set-select-label"
-                          value={set.selected}
+                          value={set.selected.toString()}
                           label="Посмотреть запись подхода"
-                          onChange={(e) =>
-                            setSet((prev) => ({
-                              ...prev,
-                              selected: Number(e.target.value),
-                            }))
-                          }
+                          onChange={handleSetChange}
                           size="small"
                         >
                           {new Array(
@@ -661,11 +669,7 @@ export function MilitaryPower({
             </>
           )}
           {tab === "feedback" && (
-            <Chart
-              xAxis={feedbackData.map((d) => d.time)}
-              yAxis={feedbackData.map((d) => d.weight)}
-              title="Обратная связь"
-            />
+            <Chart xAxis={xAxis} yAxis={yAxis} title="Обратная связь" />
           )}
         </Box>
       </Card>

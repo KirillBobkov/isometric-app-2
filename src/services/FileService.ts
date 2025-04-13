@@ -3,8 +3,12 @@ import { TrainingData } from './types';
 export class FileService {
   static async saveToFile(data: TrainingData): Promise<boolean> {
     try {
-      const fileName = `Резервная копия тренировки_${
-        new Date().toISOString().split(".")[0]
+      const fileName = `Журнал тренировок от ${
+        new Date().toLocaleDateString("ru-RU", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).split('.').join('-')
       }.json`;
       const jsonContent = JSON.stringify(data);
 

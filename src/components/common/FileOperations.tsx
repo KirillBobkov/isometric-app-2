@@ -5,6 +5,7 @@ import { TrainingData } from "../../services/types";
 import { ProgramData } from "../../services/types";
 import { FileService } from "../../services/FileService";
 import { LocalStorageService } from "../../services/LocalStorageService";
+import { mergeData } from "../../utils/mergeData";
 
 interface FileOperationsProps {
   /**
@@ -15,7 +16,7 @@ interface FileOperationsProps {
   /**
    * Callback вызываемый после успешного восстановления данных
    */
-  onDataRestored?: (data: ProgramData) => void;
+  onDataRestored: (data: ProgramData) => void;
   programKey: ProgramKey;
 }
 
@@ -32,6 +33,7 @@ export const FileOperations: React.FC<FileOperationsProps> = ({
     try {
       const data = LocalStorageService.getData();
       if (!data) {
+        console.error("Нет данных для сохранения");
         return;
       }
       await FileService.saveToFile(data);
@@ -47,8 +49,13 @@ export const FileOperations: React.FC<FileOperationsProps> = ({
 
     try {
       const restoredData = await FileService.loadFromFile(file);
-      if (restoredData && onDataRestored) {
-        const programData = (restoredData as TrainingData)[programKey] || {};
+
+      if (restoredData) {
+        const data = LocalStorageService.getData();
+
+        const merged = mergeData(restoredData, data || {});
+
+        const programData = (merged as TrainingData)[programKey] || {};
         onDataRestored(programData);
       }
     } catch (error) {
