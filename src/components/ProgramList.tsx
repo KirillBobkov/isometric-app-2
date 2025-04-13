@@ -30,41 +30,6 @@ const programs = [
     path: "/promethean-2",
     disabled: true,
   },
-  {
-    title: "6 на 6 (6 x 6)",
-    description:
-      "Программа, основанная на выполнении 6 подходов по 6 повторений для максимального развития силы.",
-    path: "/6x6",
-    disabled: true,
-  },
-  {
-    title: "Огненный счёт (The Burn Count)",
-    description:
-      "Интенсивная программа с акцентом на выносливость и сжигание калорий.",
-    path: "/burn-count",
-    disabled: true,
-  },
-  {
-    title: "Старая школа (Old School)",
-    description:
-      "Классическая программа тренировок, проверенная временем и опытом.",
-    path: "/old-school",
-    disabled: true,
-  },
-  {
-    title: "Максимум силы (One-Rep Max)",
-    description:
-      "Программа для развития максимальной силы через одиночные повторения с высокой нагрузкой.",
-    path: "/one-rep-max",
-    disabled: true,
-  },
-  {
-    title: "Три дня подряд (3 Days On)",
-    description:
-      "Трехдневная интенсивная программа с чередованием нагрузки и отдыха.",
-    path: "/3-days-on",
-    disabled: true,
-  },
 ];
 
 export const ProgramList = () => {

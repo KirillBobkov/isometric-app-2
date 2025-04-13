@@ -1,11 +1,7 @@
+import React from 'react';
 import {
   Card,
   CardContent,
-  Typography,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
 } from "@mui/material";
 import { LineChart } from "@mui/x-charts";
 import { formatTime } from "../utils/formatTime";
@@ -14,20 +10,13 @@ interface ChartProps {
   xAxis: number[];
   yAxis: number[];
   title: string;
-  isTrainingActive?: boolean;
-  selectedSet?: number;
-  onSetChange?: (set: number) => void;
-  sets?: number;
 }
 
-export function Chart({
+export const Chart: React.FC<ChartProps> = ({
   xAxis,
   yAxis,
   title,
-  selectedSet = 1,
-  onSetChange,
-  sets = 1,
-}: ChartProps) {
+}) => {
   return (
     <Card
       sx={{
@@ -36,39 +25,10 @@ export function Chart({
         flexDirection: "column",
         borderRadius: "20px",
         transition: "all 0.3s ease",
+        boxShadow: "none",
       }}
     >
-      <CardContent sx={{ flexGrow: 1 }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "16px",
-          }}
-        >
-          <div>
-            <Typography variant="subtitle1">График усилий</Typography>
-          </div>
-          {sets > 1 && onSetChange && (
-            <FormControl sx={{ minWidth: 200 }}>
-              <InputLabel id="set-select-label">Выберите запись подхода</InputLabel>
-              <Select
-                labelId="set-select-label"
-                value={selectedSet}
-                label="Посмотреть запись подхода"
-                onChange={(e) => onSetChange(Number(e.target.value))}
-                size="small"
-              >
-                {new Array(sets).fill(0).map((_, index) => (
-                  <MenuItem key={index + 1} value={index + 1}>
-                    Подход № {index + 1}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          )}
-        </div>
+      <CardContent sx={{ flexGrow: 1, p: 1 }}>
         <LineChart
           xAxis={[
             {
@@ -76,7 +36,7 @@ export function Chart({
               data: xAxis,
               scaleType: "band",
               label: "Время",
-              valueFormatter: (value) => formatTime(parseInt(value)),
+              valueFormatter: (value: number) => formatTime(value),
               labelStyle: {
                 fontSize: 14,
               },
@@ -110,4 +70,4 @@ export function Chart({
       </CardContent>
     </Card>
   );
-} 
+}; 

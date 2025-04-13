@@ -8,17 +8,11 @@ import {
 } from "@mui/material";
 import { appTheme } from "./assets/theme";
 import { Header } from "./components/Header";
-import { Routes, Route, useNavigate, useLocation, Link } from "react-router-dom";
+import { Routes, Route, useLocation, Link } from "react-router-dom";
 import { ProgramList } from "./components/ProgramList";
 
 import { Promethean } from "./components/programs/Promethean";
 import { PrometheanMarkII } from "./components/programs/PrometheanMarkII";
-import { SixBySix } from "./components/programs/SixBySix";
-import { BurnCount } from "./components/programs/BurnCount";
-import { OldSchool } from "./components/programs/OldSchool";
-import { OneRepMax } from "./components/programs/OneRepMax";
-
-import { ThreeDaysOn } from "./components/programs/ThreeDaysOn";
 import { IronMan } from "./components/programs/IronMan/index";
 import { MockBluetoothService } from "./services/MockBluetoothService";
 import { BluetoothService } from "./services/BluetoothService.js";
@@ -109,17 +103,12 @@ export default function App() {
           <Routes>
             <Route path="/promethean" element={<Promethean />} />
             <Route path="/promethean-2" element={<PrometheanMarkII />} />
-            <Route path="/6x6" element={<SixBySix />} />
-            <Route path="/burn-count" element={<BurnCount />} />
-            <Route path="/old-school" element={<OldSchool />} />
-            <Route path="/one-rep-max" element={<OneRepMax />} />
             <Route
               path="/military-power"
               element={
                 <MilitaryPower connected={connected} message={message} />
               }
             />
-            <Route path="/3-days-on" element={<ThreeDaysOn />} />
             <Route
               path="/iron-man"
               element={<IronMan connected={connected} message={message} />}

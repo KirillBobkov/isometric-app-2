@@ -6,16 +6,14 @@ import {
   SelectChangeEvent,
 } from "@mui/material";
 
-interface Exercise {
-  value: string;
-  label: string;
-}
-
 interface ExerciseSelectProps {
   disabled?: boolean;
   value: string;
   onChange: (value: string) => void;
-  exercises: Exercise[];
+  exercises: {
+    value: string;
+    label: string;
+  }[];
   label?: string;
 }
 

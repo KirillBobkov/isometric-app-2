@@ -8,10 +8,14 @@ import {
   CardContent,
   Switch,
   styled,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from "@mui/material";
+
 import { Play, Square } from "lucide-react";
 
-import { generateTrainingReport } from "../../../services/ReportService";
 import { useTimer } from "../../../hooks/useTimer";
 import { MilitaryPowerDescription } from "./MilitaryPowerDescription";
 import { TrainingTimer } from "../../TrainingTimer";
@@ -21,12 +25,19 @@ import { usePrevious } from "../../../hooks/usePrevious";
 
 import { ExerciseSelect } from "../../common/ExerciseSelect";
 import { FileOperations } from "../../common/FileOperations";
+import {
+  ProgramData,
+  SetDataPoint,
+  ExerciseData,
+} from "../../../services/FileService";
+import { StorageService } from "../../../services/StorageService";
 
 enum ActiveMode {
   DEFAULT = "default",
   REST = "rest",
   SET = "set",
   PREPARING = "preparing",
+  FINISH = "finish",
 }
 
 interface ModeTimeline {
@@ -35,12 +46,6 @@ interface ModeTimeline {
   endTime: number;
 }
 
-type SetDataPoint = {
-  time: number;
-  weight: number;
-};
-
-const SET_COUNT = 10;
 export const REST_TIME = 60000;
 export const SET_TIME = 6000;
 export const PREPARE_TIME = 10000;
@@ -71,21 +76,19 @@ const MODE_COLORS: Record<ActiveMode, string> = {
   [ActiveMode.SET]: "rgb(229, 67, 67)", // Red
   [ActiveMode.REST]: "#4CAF50", // Green
   [ActiveMode.DEFAULT]: "rgb(25, 167, 255)", // Blue
+  [ActiveMode.FINISH]: "rgb(25, 167, 255)", // Blue
 };
 
-const exercises = [
-  { value: "СТАНОВАЯ ТЯГА", label: "СТАНОВАЯ ТЯГА" },
-  { value: "ЖИМ ПЛЕЧ", label: "ЖИМ ПЛЕЧ" },
-];
+const currentDay = Math.floor(new Date().setHours(0, 0, 0, 0));
 
-const DEFAULT_TRAINING_DATA = {
-  ["СТАНОВАЯ ТЯГА"]: {
-    1: [],
-  },
-  ["ЖИМ ПЛЕЧ"]: {
-    1: [],
+const defaultMilitaryPowerData: ProgramData = {
+  [currentDay]: {
+    MILITARY_DEADLIFT: { 1: [] },
+    MILITARY_SHOULDER_PRESS: { 1: [] },
   },
 };
+
+const SET_COUNT = 10;
 
 const StyledSwitch = styled(Switch)(() => ({
   width: 70,
@@ -97,20 +100,20 @@ const StyledSwitch = styled(Switch)(() => ({
       transform: "translateX(22px)",
       "& + .MuiSwitch-track": {
         backgroundColor: "#323232",
-        opacity: 1
-      }
-    }
+        opacity: 1,
+      },
+    },
   },
   "& .MuiSwitch-thumb": {
     width: 26,
     height: 26,
-    backgroundColor: "#fff"
+    backgroundColor: "#fff",
   },
   "& .MuiSwitch-track": {
     borderRadius: 24,
     backgroundColor: "#323232",
-    opacity: 1
-  }
+    opacity: 1,
+  },
 }));
 
 export function MilitaryPower({
@@ -123,20 +126,23 @@ export function MilitaryPower({
   const freezeTime = !connected;
   const { time } = useTimer(0, freezeTime);
 
-  const [trainingData, setTrainingData] = useState<
-    Record<string, Record<number, SetDataPoint[]>>
-  >(DEFAULT_TRAINING_DATA);
+  const [selectedDate, setSelectedDate] = useState<number>(currentDay);
+  const [programData, setProgramData] = useState<ProgramData>(() => {
+    const storedData = StorageService.getProgramData("MILITARY_POWER");
+    return Object.keys(storedData || {}).length > 0
+      ? storedData
+      : defaultMilitaryPowerData;
+  });
 
   const [feedbackData, setFeedbackData] = useState<SetDataPoint[]>([]);
-
   const [tab, setTab] = useState<"feedback" | "training">("feedback");
-
   const [set, setSet] = useState({
     current: 1,
     selected: 1,
   });
-
-  const [selectedExercise, setSelectedExercise] = useState<string>("");
+  const [selectedExercise, setSelectedExercise] = useState<
+    "MILITARY_DEADLIFT" | "MILITARY_SHOULDER_PRESS" | ""
+  >("");
 
   const [modeTimeline, setModeTimeline] = useState<ModeTimeline>({
     mode: ActiveMode.DEFAULT,
@@ -150,12 +156,10 @@ export function MilitaryPower({
       return;
     }
 
-    await generateTrainingReport(trainingData, "Солдатская мощь");
-
-    await soundService.play("finish");
+    StorageService.updateProgramData("MILITARY_POWER", programData);
 
     setModeTimeline({
-      mode: ActiveMode.DEFAULT,
+      mode: ActiveMode.FINISH,
       startTime: time,
       endTime: time + DEFAULT_TIME,
     });
@@ -165,7 +169,7 @@ export function MilitaryPower({
     if (!connected) return;
 
     setTab("training");
-    setTrainingData(DEFAULT_TRAINING_DATA);
+    setProgramData(defaultMilitaryPowerData);
     setSet({
       current: 1,
       selected: 1,
@@ -180,29 +184,43 @@ export function MilitaryPower({
   const dataForRender =
     tab === "feedback"
       ? feedbackData
-      : trainingData[selectedExercise]?.[set.selected] || [];
+      : selectedExercise !== ""
+      ? programData[selectedDate]?.[selectedExercise]?.[set.selected] || []
+      : [];
 
   const maxWeight =
     dataForRender.length > 0
-      ? dataForRender.reduce((max, point) => Math.max(max, point.weight), 0)
+      ? dataForRender.reduce(
+          (max: number, point: SetDataPoint) => Math.max(max, point.weight),
+          0
+        )
       : 0;
 
+  const exerciseData =
+    selectedExercise !== ""
+      ? programData[selectedDate]?.[selectedExercise] || {}
+      : ({} as ExerciseData);
+  const allSetData: SetDataPoint[] = Object.values(exerciseData).reduce(
+    (acc: SetDataPoint[], dataSet: SetDataPoint[]) => {
+      return acc.concat(dataSet);
+    },
+    []
+  );
+
   const maxWeightForAllSets =
-    Object.values(trainingData)
-      .flatMap((sets) => Object.values(sets))
-      .flat().length > 0
-      ? Object.values(trainingData)
-          .flatMap((sets) => Object.values(sets))
-          .flat()
-          .reduce((max, point) => Math.max(max, point.weight), 0)
+    allSetData.length > 0
+      ? allSetData.reduce(
+          (max: number, point: SetDataPoint) => Math.max(max, point.weight),
+          0
+        )
       : 0;
 
   // Получение данных для графика
   const getTrainingChartData = () => {
     const limitedData = dataForRender.slice(-50);
     return {
-      xAxis: limitedData.map((data) => data.time),
-      yAxis: limitedData.map((data) => data.weight),
+      xAxis: limitedData.map((data: SetDataPoint) => data.time),
+      yAxis: limitedData.map((data: SetDataPoint) => data.weight),
       title: `Подход ${set.selected}`,
     };
   };
@@ -221,6 +239,8 @@ export function MilitaryPower({
       soundService.play("start_with_max");
     } else if (modeTimeline.mode === ActiveMode.PREPARING) {
       soundService.play("prepare");
+    } else if (modeTimeline.mode === ActiveMode.FINISH) {
+      soundService.play("finish");
     }
   }, [modeTimeline.mode, currentSet]);
 
@@ -242,23 +262,30 @@ export function MilitaryPower({
   const previousTime = usePrevious(time);
 
   if (time !== previousTime && connected) {
-    // Обработка данных от тренажера
     if (modeTimeline.mode === ActiveMode.DEFAULT) {
       setFeedbackData((prev) => [
         ...prev,
         { time, weight: parseFloat(message) },
       ]);
-    } else if (modeTimeline.mode === ActiveMode.SET) {
-      setTrainingData((prev) => ({
-        ...prev,
-        [selectedExercise]: {
-          ...prev[selectedExercise],
-          [set.current]: [
-            ...(prev[selectedExercise][set.current] || []),
-            { time, weight: parseFloat(message) },
-          ],
-        },
-      }));
+    } else if (modeTimeline.mode === ActiveMode.SET && selectedExercise) {
+      setProgramData((prev) => {
+        const currentExercise = prev[selectedDate]?.[selectedExercise] || {};
+        const currentSet = currentExercise[set.current] || [];
+
+        return {
+          ...prev,
+          [selectedDate]: {
+            ...prev[selectedDate],
+            [selectedExercise]: {
+              ...currentExercise,
+              [set.current]: [
+                ...currentSet,
+                { time, weight: parseFloat(message) },
+              ],
+            },
+          },
+        };
+      });
     }
     // Обработка перехода между режимами
     if (time >= modeTimeline.endTime && connected) {
@@ -274,10 +301,11 @@ export function MilitaryPower({
         case ActiveMode.SET:
           if (set.current >= SET_COUNT) {
             setModeTimeline({
-              mode: ActiveMode.DEFAULT,
+              mode: ActiveMode.FINISH,
               startTime: time,
               endTime: time + DEFAULT_TIME,
             });
+            StorageService.updateProgramData("MILITARY_POWER", programData);
           } else {
             setModeTimeline({
               mode: ActiveMode.REST,
@@ -330,15 +358,22 @@ export function MilitaryPower({
       >
         <FileOperations
           disabled={modeTimeline.mode !== ActiveMode.DEFAULT}
-          trainingData={trainingData}
-          hasData={Object.values(trainingData).some((exercise) =>
-            Object.values(exercise).some((set) => set.length > 0)
+          programData={programData}
+          hasData={Object.values(programData || {}).some(
+            (exercise: Record<string, any>) =>
+              exercise &&
+              Object.values(exercise).some(
+                (setData: any[]) => setData && setData.length > 0
+              )
           )}
           onDataRestored={(data) => {
             setTab("training");
-            setTrainingData(data);
+            setSelectedExercise(
+              "" as "" | "MILITARY_DEADLIFT" | "MILITARY_SHOULDER_PRESS"
+            );
+            setProgramData(data);
           }}
-          name="Солдатская мощь"
+          programKey="MILITARY_POWER"
         />
       </Box>
 
@@ -374,17 +409,28 @@ export function MilitaryPower({
             }}
           >
             <ExerciseSelect
-              disabled={modeTimeline.mode !== ActiveMode.DEFAULT || !connected}
+              disabled={
+                modeTimeline.mode !== ActiveMode.DEFAULT &&
+                modeTimeline.mode !== ActiveMode.FINISH
+              }
               value={selectedExercise}
-              onChange={setSelectedExercise}
-              exercises={exercises}
+              onChange={(value) =>
+                setSelectedExercise(
+                  value as "" | "MILITARY_DEADLIFT" | "MILITARY_SHOULDER_PRESS"
+                )
+              }
+              exercises={[
+                { value: "MILITARY_DEADLIFT", label: "СТАНОВАЯ ТЯГА" },
+                { value: "MILITARY_SHOULDER_PRESS", label: "ЖИМ ПЛЕЧ" },
+              ]}
             />
 
             <Button
               variant="contained"
               size="large"
               startIcon={
-                modeTimeline.mode !== ActiveMode.DEFAULT ? (
+                modeTimeline.mode !== ActiveMode.DEFAULT &&
+                modeTimeline.mode !== ActiveMode.FINISH ? (
                   <Square size={24} />
                 ) : (
                   <Play size={24} />
@@ -409,12 +455,14 @@ export function MilitaryPower({
                 borderRadius: "28px",
                 padding: "12px 32px",
                 backgroundColor:
-                  modeTimeline.mode !== ActiveMode.DEFAULT
+                  modeTimeline.mode !== ActiveMode.DEFAULT &&
+                  modeTimeline.mode !== ActiveMode.FINISH
                     ? "#ff4444"
                     : "#4CAF50",
                 "&:hover": {
                   backgroundColor:
-                    modeTimeline.mode !== ActiveMode.DEFAULT
+                    modeTimeline.mode !== ActiveMode.DEFAULT &&
+                    modeTimeline.mode !== ActiveMode.FINISH
                       ? "#ff0000"
                       : "#45a049",
                 },
@@ -442,13 +490,14 @@ export function MilitaryPower({
             {getStatusMessage(modeTimeline.mode, connected)}
           </Typography>
 
-          {modeTimeline.mode !== ActiveMode.DEFAULT && (
-            <TrainingTimer
-              totalTime={modeTimeline.endTime - modeTimeline.startTime}
-              time={modeTimeline.endTime - time}
-              color={MODE_COLORS[modeTimeline.mode]}
-            />
-          )}
+          {modeTimeline.mode !== ActiveMode.DEFAULT &&
+            modeTimeline.mode !== ActiveMode.FINISH && (
+              <TrainingTimer
+                totalTime={modeTimeline.endTime - modeTimeline.startTime}
+                time={modeTimeline.endTime - time}
+                color={MODE_COLORS[modeTimeline.mode]}
+              />
+            )}
         </Card>
 
         <Box
@@ -536,12 +585,19 @@ export function MilitaryPower({
         </Box>
       </Box>
 
-      <Box sx={{ mb: 2, display: "flex", justifyContent: "center", gap: 2, alignItems: "center" }}>
+      <Box
+        sx={{
+          mb: 2,
+          display: "flex",
+          justifyContent: "center",
+          gap: 2,
+          alignItems: "center",
+        }}
+      >
         <Typography sx={{ color: tab === "feedback" ? "#323232" : "#666" }}>
           Обратная связь
         </Typography>
         <StyledSwitch
-          disabled={!connected}
           checked={tab === "training"}
           onChange={(e) => setTab(e.target.checked ? "training" : "feedback")}
         />
@@ -549,40 +605,105 @@ export function MilitaryPower({
           Тренировка
         </Typography>
       </Box>
-      <Box
+
+      <Card
         sx={{
           display: "flex",
-          flexDirection: { xs: "column", md: "row" },
-          gap: 4,
+          flexDirection: { xs: "column", md: "column" },
+          gap: 0,
+          p: 2,
+          borderRadius: 4,
         }}
       >
         <Box sx={{ flex: 1 }}>
           {tab === "training" && (
-            <Chart
-              xAxis={xAxis}
-              yAxis={yAxis}
-              title={title}
-              sets={
-                Object.keys(trainingData[selectedExercise] ?? {})?.length ?? 1
-              }
-              selectedSet={set.selected}
-              onSetChange={(set) =>
-                setSet((prev) => ({ ...prev, selected: set }))
-              }
-            />
+            <>
+              <Box sx={{ display: "flex", gap: 2 }}>
+                {selectedExercise && (
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      gap: 2,
+                      mb: 2,
+                    }}
+                  >
+                    <FormControl sx={{ minWidth: 200 }}>
+                      <InputLabel id="date-select-label">
+                        Выберите дату
+                      </InputLabel>
+                      <Select
+                        labelId="date-select-label"
+                        value={selectedDate}
+                        label="Выберите дату"
+                        onChange={(e) =>
+                          setSelectedDate(Number(e.target.value))
+                        }
+                        size="small"
+                      >
+                        {Object.keys(programData)
+                          .map(Number)
+                          .map((date) => (
+                            <MenuItem key={date} value={date}>
+                              {new Date(date).toLocaleDateString("ru-RU", {
+                                day: "numeric",
+                                month: "long",
+                                year: "numeric",
+                              })}
+                            </MenuItem>
+                          ))}
+                      </Select>
+                    </FormControl>
+
+                    {Object.keys(
+                      programData[selectedDate]?.[selectedExercise] || {}
+                    ).length > 1 && (
+                      <FormControl sx={{ minWidth: 200 }}>
+                        <InputLabel id="set-select-label">
+                          Выберите запись подхода
+                        </InputLabel>
+                        <Select
+                          labelId="set-select-label"
+                          value={set.selected}
+                          label="Посмотреть запись подхода"
+                          onChange={(e) =>
+                            setSet((prev) => ({
+                              ...prev,
+                              selected: Number(e.target.value),
+                            }))
+                          }
+                          size="small"
+                        >
+                          {new Array(
+                            Object.keys(
+                              programData[selectedDate]?.[selectedExercise] ||
+                                {}
+                            ).length
+                          )
+                            .fill(0)
+                            .map((_, index) => (
+                              <MenuItem key={index + 1} value={index + 1}>
+                                Подход № {index + 1}
+                              </MenuItem>
+                            ))}
+                        </Select>
+                      </FormControl>
+                    )}
+                  </Box>
+                )}
+              </Box>
+              <Chart xAxis={xAxis} yAxis={yAxis} title={title} />
+            </>
           )}
           {tab === "feedback" && (
             <Chart
               xAxis={feedbackData.map((d) => d.time)}
               yAxis={feedbackData.map((d) => d.weight)}
               title="Обратная связь"
-              sets={1}
-              selectedSet={1}
-              onSetChange={() => {}}
             />
           )}
         </Box>
-      </Box>
+      </Card>
     </Container>
   );
 }

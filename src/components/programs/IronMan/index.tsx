@@ -7,7 +7,7 @@ import {
   Card,
   CardContent,
   Switch,
-  styled
+  styled,
 } from "@mui/material";
 import { Play, Square } from "lucide-react";
 
@@ -109,20 +109,20 @@ const StyledSwitch = styled(Switch)(() => ({
       transform: "translateX(22px)",
       "& + .MuiSwitch-track": {
         backgroundColor: "#323232",
-        opacity: 1
-      }
-    }
+        opacity: 1,
+      },
+    },
   },
   "& .MuiSwitch-thumb": {
     width: 26,
     height: 26,
-    backgroundColor: "#fff"
+    backgroundColor: "#fff",
   },
   "& .MuiSwitch-track": {
     borderRadius: 24,
     backgroundColor: "#323232",
-    opacity: 1
-  }
+    opacity: 1,
+  },
 }));
 
 export function IronMan({
@@ -164,7 +164,7 @@ export function IronMan({
       return;
     }
 
-    setModeTimeline({ 
+    setModeTimeline({
       mode: ActiveMode.DEFAULT,
       startTime: time,
       endTime: time + DEFAULT_TIME,
@@ -297,7 +297,7 @@ export function IronMan({
           break;
 
         case ActiveMode.SET:
-            stopExercise();
+          stopExercise();
           break;
 
         default:
@@ -330,7 +330,9 @@ export function IronMan({
         <FileOperations
           disabled={modeTimeline.mode !== ActiveMode.DEFAULT}
           trainingData={trainingData}
-          hasData={Object.values(trainingData).some(exercise => Object.values(exercise).some(set => set.length > 0))}
+          hasData={Object.values(trainingData).some((exercise) =>
+            Object.values(exercise).some((set) => set.length > 0)
+          )}
           onDataRestored={(data) => {
             setTab("training");
             setTrainingData(data);
@@ -371,9 +373,7 @@ export function IronMan({
             }}
           >
             <ExerciseSelect
-              disabled={
-                modeTimeline.mode !== ActiveMode.DEFAULT 
-              }
+              disabled={modeTimeline.mode !== ActiveMode.DEFAULT}
               value={selectedExercise}
               onChange={setSelectedExercise}
               exercises={exercises}
@@ -465,15 +465,14 @@ export function IronMan({
               p: 4,
               flexGrow: 1,
               backgroundColor: (() => {
-                if (modeTimeline.mode !== ActiveMode.SET)
-                  return "none";
+                if (modeTimeline.mode !== ActiveMode.SET) return "none";
 
                 const currentValue = maxWeights[selectedExercise]
                   ? Math.round(
                       (Number(message) / maxWeights[selectedExercise]) * 100
                     )
                   : 0;
-                  
+
                 if (currentValue === 0) return "none";
                 return Math.abs(currentValue - diapason) > 5
                   ? "rgb(120, 18, 18)"
@@ -507,15 +506,14 @@ export function IronMan({
                   maxWeights[selectedExercise] &&
                   modeTimeline.mode === ActiveMode.SET
                     ? Math.round(
-                        (Number(message) / maxWeights[selectedExercise]) *
-                          100
+                        (Number(message) / maxWeights[selectedExercise]) * 100
                       )
                     : "0"
                 } %`}
               </Typography>
             </CardContent>
           </Card>
-          
+
           <Card
             sx={{
               display: "flex",
@@ -555,26 +553,36 @@ export function IronMan({
         </Box>
       </Box>
 
-      <Box sx={{ mb: 2, display: "flex", justifyContent: "center", gap: 2, alignItems: "center" }}>
-        <Typography sx={{ color: tab === "feedback" ? "#323232" : "#666" }}>
-          Обратная связь
-        </Typography>
-        <StyledSwitch
-          disabled={!connected}
-          checked={tab === "training"}
-          onChange={(e) => setTab(e.target.checked ? "training" : "feedback")}
-        />
-        <Typography sx={{ color: tab === "training" ? "#323232" : "#666" }}>
-          Тренировка
-        </Typography>
-      </Box>
-      <Box
+      <Card
         sx={{
           display: "flex",
-          flexDirection: { xs: "column", md: "row" },
-          gap: 4,
+          flexDirection: { xs: "column", md: "column" },
+          gap: 0,
+          p: 1,
+          borderRadius: 4,
         }}
       >
+        <Box
+          sx={{
+            mb: 2,
+            display: "flex",
+            justifyContent: "center",
+            gap: 2,
+            alignItems: "center",
+          }}
+        >
+          <Typography sx={{ color: tab === "feedback" ? "#323232" : "#666" }}>
+            Обратная связь
+          </Typography>
+          <StyledSwitch
+            disabled={!connected}
+            checked={tab === "training"}
+            onChange={(e) => setTab(e.target.checked ? "training" : "feedback")}
+          />
+          <Typography sx={{ color: tab === "training" ? "#323232" : "#666" }}>
+            Тренировка
+          </Typography>
+        </Box>
         <Box sx={{ flex: 1 }}>
           {tab === "training" && (
             <Chart
@@ -601,7 +609,7 @@ export function IronMan({
             />
           )}
         </Box>
-      </Box>
+      </Card>
     </Container>
   );
 }
