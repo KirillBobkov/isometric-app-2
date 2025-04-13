@@ -15,16 +15,12 @@ export type ProgramLabel = typeof PROGRAMS[ProgramKey];
 
 export const EXERCISES = {
   // Iron Man exercises
-  DEADLIFT: "ПОДЪЕМ ШТАНГИ С ПОЛА (DEADLIFT)",
-  BICEPS_CURL: "ПОДЕМ НА БИЦЕПС (BICEPS CURL)", 
-  SHOULDER_PRESS: "ПРЕСС ОТ ГРУДИ (SHOULDER PRESS)",
-  FRONT_SQUAT: "ФРОНТАЛЬНЫЕ ВЫПАДЫ (FRONT SQUAT)",
-  CALF_RAISE: "ПОДЪЕМЫ НА НОСКИ (CALF RAISE)",
-  BENT_OVER_ROW: "ГАНТЕЛЬНАЯ ТЯГА В НАКЛОНЕ (BENT-OVER ROW)",
-  
-  // Military Power exercises
-  MILITARY_DEADLIFT: "СТАНОВАЯ ТЯГА",
-  MILITARY_SHOULDER_PRESS: "ЖИМ ПЛЕЧ"
+  DEADLIFT: "СТАНОВАЯ ТЯГА",
+  BICEPS_CURL: "ПОДЪЕМ НА БИЦЕПС", 
+  FRONT_SQUAT: "ФРОНТАЛЬНЫЕ ПРИСЕДЫ",
+  CALF_RAISE: "ПОДЪЕМЫ НА НОСКИ",
+  BENT_OVER_ROW: "ГАНТЕЛЬНАЯ ТЯГА В НАКЛОНЕ",
+  SHOULDER_PRESS: "ЖИМ ПЛЕЧАМИ СТОЯ"
 } as const;
 
 export type ExerciseKey = keyof typeof EXERCISES;
@@ -32,6 +28,7 @@ export type ExerciseLabel = typeof EXERCISES[ExerciseKey];
 
 export type SetNumber = number;
 export interface ExerciseData {
+  maxWeight?: number;
   [set: SetNumber]: SetDataPoint[];
 }
 

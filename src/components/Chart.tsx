@@ -65,6 +65,9 @@ export const Chart: React.FC<ChartProps> = ({
             legend: {
               hidden: true
             },
+            noDataOverlay: {
+              message: "Запись отсутствует",
+            }
           }}
         />
       </CardContent>

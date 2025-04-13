@@ -5,9 +5,13 @@ import {
   Typography,
   Box,
   Card,
-  CardContent,
   Switch,
   styled,
+  InputLabel,
+  Select,
+  MenuItem,
+  FormControl,
+  SelectChangeEvent,
 } from "@mui/material";
 import { Play, Square } from "lucide-react";
 
@@ -20,6 +24,15 @@ import { soundService } from "../../../services/SoundService";
 import { usePrevious } from "../../../hooks/usePrevious";
 import { ExerciseSelect } from "../../common/ExerciseSelect";
 import { FileOperations } from "../../common/FileOperations";
+import {
+  EXERCISES,
+  ProgramData,
+  ExerciseKey,
+  DayData,
+} from "../../../services/types";
+import { LocalStorageService } from "../../../services/LocalStorageService";
+import { mergeData } from "../../../utils/mergeData";
+import { formatDate } from "../../../utils/dateUtils";
 
 enum ActiveMode {
   DEFAULT = "default",
@@ -57,24 +70,29 @@ export const getStatusMessage = (
 };
 
 // Exercise groups
-const LONG_EXERCISES = [
-  "ПОДЪЕМ ШТАНГИ С ПОЛА (DEADLIFT)",
-  "ПОДЕМ НА БИЦЕПС (BICEPS CURL)",
-  "ПРЕСС ОТ ГРУДИ (SHOULDER PRESS)",
-];
-const SHORT_EXERCISES = [
-  "ФРОНТАЛЬНЫЕ ВЫПАДЫ (FRONT SQUAT)",
-  "ПОДЪЕМЫ НА НОСКИ (CALF RAISE)",
-  "ГАНТЕЛЬНАЯ ТЯГА В НАКЛОНЕ (BENT-OVER ROW)",
+const LONG_EXERCISES: ExerciseKey[] = [
+  "DEADLIFT",
+  "BICEPS_CURL",
+  "SHOULDER_PRESS",
 ];
 
-const DEFAULT_TRAINING_DATA = [...LONG_EXERCISES, ...SHORT_EXERCISES].reduce(
-  (acc, exercise) => {
-    acc[exercise] = { 1: [] };
-    return acc;
-  },
-  {} as Record<string, Record<number, any[]>>
-);
+const SHORT_EXERCISES: ExerciseKey[] = [
+  "FRONT_SQUAT",
+  "CALF_RAISE",
+  "BENT_OVER_ROW",
+];
+
+const currentDay = Math.floor(new Date().setHours(0, 0, 0, 0));
+
+const DEFAULT_IRON_MAN_DATA: ProgramData = {
+  [currentDay]: [...LONG_EXERCISES, ...SHORT_EXERCISES].reduce(
+    (acc, exercise) => {
+      acc[exercise as ExerciseKey] = { 1: [] };
+      return acc;
+    },
+    {} as DayData
+  ),
+};
 
 const MODE_COLORS: Record<ActiveMode, string> = {
   [ActiveMode.PREPARING]: "rgb(25, 167, 255)", // Blue
@@ -85,8 +103,8 @@ const MODE_COLORS: Record<ActiveMode, string> = {
 };
 
 const exercises = [
-  ...LONG_EXERCISES.map((ex) => ({ value: ex, label: ex })),
-  ...SHORT_EXERCISES.map((ex) => ({ value: ex, label: ex })),
+  ...LONG_EXERCISES.map((ex) => ({ value: ex, label: EXERCISES[ex] })),
+  ...SHORT_EXERCISES.map((ex) => ({ value: ex, label: EXERCISES[ex] })),
 ];
 interface ModeTimeline {
   mode: ActiveMode;
@@ -135,9 +153,10 @@ export function IronMan({
   const freezeTime = !connected;
   const { time } = useTimer(0, freezeTime);
 
-  const [trainingData, setTrainingData] = useState<
-    Record<string, Record<number, SetDataPoint[]>>
-  >(DEFAULT_TRAINING_DATA);
+  const [programData, setProgramData] = useState<ProgramData>(() => {
+    const storedData = LocalStorageService.getProgramData("IRON_MAN");
+    return mergeData(storedData, DEFAULT_IRON_MAN_DATA);
+  });
 
   const [feedbackData, setFeedbackData] = useState<SetDataPoint[]>([]);
 
@@ -148,9 +167,14 @@ export function IronMan({
     selected: 1,
   });
 
-  const [maxWeights, setMaxWeights] = useState<Record<string, number>>({});
-
-  const [selectedExercise, setSelectedExercise] = useState<string>("");
+  const [selectedExercise, setSelectedExercise] = useState<
+    | "DEADLIFT"
+    | "BICEPS_CURL"
+    | "SHOULDER_PRESS"
+    | "FRONT_SQUAT"
+    | "CALF_RAISE"
+    | "BENT_OVER_ROW"
+  >("DEADLIFT");
 
   const [modeTimeline, setModeTimeline] = useState<ModeTimeline>({
     mode: ActiveMode.DEFAULT,
@@ -158,24 +182,20 @@ export function IronMan({
     endTime: Date.now() + DEFAULT_TIME,
   });
 
+  const [selectedDate, setSelectedDate] = useState<number>(currentDay);
+
   const stopExercise = async () => {
     if (!connected) {
       alert("Пожалуйста, подключите тренажер перед началом тренировки");
       return;
     }
 
+    LocalStorageService.saveProgramData("IRON_MAN", programData);
+
     setModeTimeline({
       mode: ActiveMode.DEFAULT,
       startTime: time,
       endTime: time + DEFAULT_TIME,
-    });
-
-    // await generateTrainingReport(trainingData, 'Железный человек');
-
-    setMaxWeights((prev) => {
-      const newMaxWeights = { ...prev };
-      delete newMaxWeights[selectedExercise];
-      return newMaxWeights;
     });
 
     await soundService.play("exersise_finished");
@@ -185,7 +205,17 @@ export function IronMan({
     if (!connected) return;
 
     setTab("training");
-    setTrainingData(DEFAULT_TRAINING_DATA);
+    setSelectedDate(currentDay);
+    setProgramData((prev) => ({
+      ...prev,
+      [currentDay]: {
+        ...prev[currentDay],
+        ...DEFAULT_IRON_MAN_DATA[currentDay],
+        [selectedExercise]: {
+          1: [],
+        },
+      },
+    }));
     setSet({
       current: 1,
       selected: 1,
@@ -197,10 +227,25 @@ export function IronMan({
     });
   };
 
+  const handleDateChange = (event: SelectChangeEvent) => {
+    setSelectedDate(Number(event.target.value));
+    setSet((prev) => ({
+      ...prev,
+      selected: 1,
+    }));
+  };
+
+  const handleSetChange = (event: SelectChangeEvent) => {
+    setSet((prev) => ({
+      ...prev,
+      selected: Number(event.target.value),
+    }));
+  };
+
   const dataForRender =
     tab === "feedback"
       ? feedbackData
-      : trainingData[selectedExercise]?.[1] || [];
+      : programData[selectedDate]?.[selectedExercise]?.[set.selected] || [];
 
   // Получение данных для графика
   const getTrainingChartData = () => {
@@ -259,22 +304,31 @@ export function IronMan({
         { time, weight: parseFloat(message) },
       ]);
     } else if (modeTimeline.mode === ActiveMode.CHECK_MAX_WEIGHT) {
-      setMaxWeights((prev) => ({
+      setProgramData((prev) => ({
         ...prev,
-        [selectedExercise]: Math.max(
-          prev[selectedExercise] || 0,
-          parseFloat(message)
-        ),
+        [selectedDate]: {
+          ...prev[selectedDate],
+          [selectedExercise]: {
+            ...prev[selectedDate]?.[selectedExercise],
+            maxWeight: Math.max(
+              prev[selectedDate]?.[selectedExercise]?.maxWeight || 0,
+              parseFloat(message)
+            ),
+          },
+        },
       }));
     } else if (modeTimeline.mode === ActiveMode.SET) {
-      setTrainingData((prev) => ({
+      setProgramData((prev) => ({
         ...prev,
-        [selectedExercise]: {
-          ...prev[selectedExercise],
-          [set.current]: [
-            ...(prev[selectedExercise][set.current] || []),
-            { time, weight: parseFloat(message) },
-          ],
+        [selectedDate]: {
+          ...prev[selectedDate],
+          [selectedExercise]: {
+            ...prev[selectedDate]?.[selectedExercise],
+            [set.current]: [
+              ...(prev[selectedDate]?.[selectedExercise]?.[set.current] || []),
+              { time, weight: parseFloat(message) },
+            ],
+          },
         },
       }));
     }
@@ -306,6 +360,17 @@ export function IronMan({
     }
   }
 
+  const trainigInProgress =
+    modeTimeline.mode !== ActiveMode.DEFAULT &&
+    modeTimeline.mode !== ActiveMode.FINISHED;
+
+  const setCount = Object.keys(
+    programData[selectedDate]?.[selectedExercise] || {}
+  ).length;
+
+  const maxWeight =
+    programData[selectedDate]?.[selectedExercise]?.maxWeight || 0;
+
   return (
     <Container maxWidth="lg" sx={{ p: 0 }}>
       <Typography
@@ -318,28 +383,6 @@ export function IronMan({
         Железный человек (Iron Man)
       </Typography>
       <IronManDescription />
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: { xs: "center", md: "center" },
-          flex: { xs: "1 1 100%", md: 1 },
-          mt: { xs: 3, md: 0 },
-          mb: 6,
-        }}
-      >
-        <FileOperations
-          disabled={modeTimeline.mode !== ActiveMode.DEFAULT}
-          trainingData={trainingData}
-          hasData={Object.values(trainingData).some((exercise) =>
-            Object.values(exercise).some((set) => set.length > 0)
-          )}
-          onDataRestored={(data) => {
-            setTab("training");
-            setTrainingData(data);
-          }}
-          name="Железный человек"
-        />
-      </Box>
 
       <Box
         sx={{
@@ -374,20 +417,19 @@ export function IronMan({
           >
             <ExerciseSelect
               disabled={modeTimeline.mode !== ActiveMode.DEFAULT}
-              value={selectedExercise}
-              onChange={setSelectedExercise}
               exercises={exercises}
+              value={selectedExercise}
+              onChange={(value) => {
+                setSelectedExercise(value as ExerciseKey);
+                setTab("training");
+              }}
             />
 
             <Button
               variant="contained"
               size="large"
               startIcon={
-                modeTimeline.mode !== ActiveMode.DEFAULT ? (
-                  <Square size={24} />
-                ) : (
-                  <Play size={24} />
-                )
+                trainigInProgress ? <Square size={24} /> : <Play size={24} />
               }
               onClick={() => {
                 if (modeTimeline.mode === ActiveMode.SET) {
@@ -404,21 +446,13 @@ export function IronMan({
               sx={{
                 borderRadius: "28px",
                 padding: "12px 32px",
-                backgroundColor:
-                  modeTimeline.mode !== ActiveMode.DEFAULT
-                    ? "#ff4444"
-                    : "#4CAF50",
+                backgroundColor: trainigInProgress ? "#ff4444" : "#4CAF50",
                 "&:hover": {
-                  backgroundColor:
-                    modeTimeline.mode !== ActiveMode.DEFAULT
-                      ? "#ff0000"
-                      : "#45a049",
+                  backgroundColor: trainigInProgress ? "#ff0000" : "#45a049",
                 },
               }}
             >
-              {modeTimeline.mode !== ActiveMode.DEFAULT
-                ? "Завершить упражнение"
-                : "Начать упражнение"}
+              {trainigInProgress ? "Завершить упражнение" : "Начать упражнение"}
             </Button>
           </Box>
 
@@ -438,7 +472,7 @@ export function IronMan({
             {getStatusMessage(modeTimeline.mode, connected)}
           </Typography>
 
-          {modeTimeline.mode !== ActiveMode.DEFAULT && (
+          {trainigInProgress && (
             <TrainingTimer
               totalTime={modeTimeline.endTime - modeTimeline.startTime}
               time={modeTimeline.endTime - time}
@@ -467,11 +501,10 @@ export function IronMan({
               backgroundColor: (() => {
                 if (modeTimeline.mode !== ActiveMode.SET) return "none";
 
-                const currentValue = maxWeights[selectedExercise]
-                  ? Math.round(
-                      (Number(message) / maxWeights[selectedExercise]) * 100
-                    )
-                  : 0;
+                const currentValue =
+                  maxWeight > 0
+                    ? Math.round((Number(message) / maxWeight) * 100)
+                    : 0;
 
                 if (currentValue === 0) return "none";
                 return Math.abs(currentValue - diapason) > 5
@@ -480,38 +513,21 @@ export function IronMan({
               })(),
             }}
           >
-            <CardContent
-              sx={{
-                flexGrow: 1,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              align="center"
+              sx={{ mb: 1 }}
             >
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                align="center"
-                sx={{ mb: 1 }}
-              >
-                Диапазон
-              </Typography>
-              <Typography
-                variant="h1"
-                align="center"
-                sx={{ fontWeight: "bold" }}
-              >
-                {`${
-                  maxWeights[selectedExercise] &&
-                  modeTimeline.mode === ActiveMode.SET
-                    ? Math.round(
-                        (Number(message) / maxWeights[selectedExercise]) * 100
-                      )
-                    : "0"
-                } %`}
-              </Typography>
-            </CardContent>
+              Диапазон
+            </Typography>
+            <Typography variant="h1" align="center" sx={{ fontWeight: "bold" }}>
+              {`${
+                maxWeight > 0 && modeTimeline.mode === ActiveMode.SET
+                  ? Math.round((Number(message) / maxWeight) * 100)
+                  : "0"
+              } %`}
+            </Typography>
           </Card>
 
           <Card
@@ -524,92 +540,165 @@ export function IronMan({
               flexGrow: 1,
             }}
           >
-            <CardContent
-              sx={{
-                flexGrow: 1,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              align="center"
+              sx={{ mb: 1 }}
             >
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                align="center"
-                sx={{ mb: 1 }}
-              >
-                Измеренный максимум
-              </Typography>
-              <Typography
-                variant="h1"
-                align="center"
-                sx={{ fontWeight: "bold" }}
-              >
-                {`${maxWeights[selectedExercise]?.toFixed(1) || 0} кг`}
-              </Typography>
-            </CardContent>
+              Измеренный максимум
+            </Typography>
+            <Typography variant="h1" align="center" sx={{ fontWeight: "bold" }}>
+              {`${maxWeight > 0 ? maxWeight.toFixed(1) : 0} кг`}
+            </Typography>
+          </Card>
+
+          <Card
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              borderRadius: 4,
+              transition: "all 0.3s ease",
+              p: 4,
+              flexGrow: 1,
+            }}
+          >
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              align="center"
+              sx={{ mb: 1 }}
+            >
+              Среднее значение
+            </Typography>
+            <Typography variant="h1" align="center" sx={{ fontWeight: "bold" }}>
+              {`${
+                (() => {
+                  const currentSetData = programData[selectedDate]?.[selectedExercise]?.[set.selected] || [];
+                  return currentSetData.length > 0 
+                    ? (currentSetData.reduce((acc, curr) => acc + curr.weight, 0) / currentSetData.length).toFixed(1) 
+                    : 0;
+                })()
+              } кг`}
+            </Typography>
           </Card>
         </Box>
       </Box>
 
+      <Box
+        sx={{
+          mb: 2,
+          display: "flex",
+          justifyContent: "center",
+          gap: 2,
+          alignItems: "center",
+        }}
+      >
+        <Typography sx={{ color: tab === "feedback" ? "#323232" : "#666" }}>
+          Обратная связь
+        </Typography>
+        <StyledSwitch
+          checked={tab === "training"}
+          onChange={(e) => setTab(e.target.checked ? "training" : "feedback")}
+        />
+        <Typography sx={{ color: tab === "training" ? "#323232" : "#666" }}>
+          Тренировка
+        </Typography>
+      </Box>
       <Card
         sx={{
           display: "flex",
           flexDirection: { xs: "column", md: "column" },
           gap: 0,
-          p: 1,
+          p: 2,
+          mb: 4,
           borderRadius: 4,
         }}
       >
-        <Box
-          sx={{
-            mb: 2,
-            display: "flex",
-            justifyContent: "center",
-            gap: 2,
-            alignItems: "center",
-          }}
-        >
-          <Typography sx={{ color: tab === "feedback" ? "#323232" : "#666" }}>
-            Обратная связь
-          </Typography>
-          <StyledSwitch
-            disabled={!connected}
-            checked={tab === "training"}
-            onChange={(e) => setTab(e.target.checked ? "training" : "feedback")}
-          />
-          <Typography sx={{ color: tab === "training" ? "#323232" : "#666" }}>
-            Тренировка
-          </Typography>
-        </Box>
         <Box sx={{ flex: 1 }}>
           {tab === "training" && (
-            <Chart
-              xAxis={xAxis}
-              yAxis={yAxis}
-              title={title}
-              sets={
-                Object.keys(trainingData[selectedExercise] ?? {})?.length ?? 1
-              }
-              selectedSet={set.selected}
-              onSetChange={(set) =>
-                setSet((prev) => ({ ...prev, selected: set }))
-              }
-            />
+            <>
+              <Box sx={{ display: "flex", gap: 2 }}>
+                {selectedExercise && (
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      gap: 2,
+                      mb: 2,
+                    }}
+                  >
+                    <FormControl sx={{ minWidth: 200 }}>
+                      <InputLabel id="date-select-label">
+                        Выберите дату
+                      </InputLabel>
+                      <Select
+                        labelId="date-select-label"
+                        value={selectedDate.toString()}
+                        label="Выберите дату"
+                        onChange={handleDateChange}
+                        size="small"
+                      >
+                        {Object.keys(programData)
+                          .map(Number)
+                          .map((date) => (
+                            <MenuItem key={date} value={date}>
+                              {formatDate(date)}
+                            </MenuItem>
+                          ))}
+                      </Select>
+                    </FormControl>
+
+                    {setCount > 1 && (
+                      <FormControl>
+                        <InputLabel id="set-select-label">
+                          Выберите запись подхода
+                        </InputLabel>
+                        <Select
+                          labelId="set-select-label"
+                          value={set.selected.toString()}
+                          label="Посмотреть запись подхода"
+                          onChange={handleSetChange}
+                          size="small"
+                        >
+                          {new Array(setCount).fill(0).map((_, index) => (
+                            <MenuItem key={index + 1} value={index + 1}>
+                              Подход № {index + 1}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    )}
+                  </Box>
+                )}
+              </Box>
+            </>
           )}
-          {tab === "feedback" && (
-            <Chart
-              xAxis={feedbackData.map((d) => d.time)}
-              yAxis={feedbackData.map((d) => d.weight)}
-              title="Обратная связь"
-              sets={1}
-              selectedSet={1}
-              onSetChange={() => {}}
-            />
-          )}
+          <Chart
+            xAxis={xAxis}
+            yAxis={yAxis}
+            title={tab === "feedback" ? "Обратная связь" : title}
+          />
         </Box>
       </Card>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: { xs: "center", md: "center" },
+          flex: { xs: "1 1 100%", md: 1 },
+          mt: { xs: 3, md: 0 },
+          mb: 6,
+        }}
+      >
+        <FileOperations
+          programKey="IRON_MAN"
+          disabled={trainigInProgress}
+          onDataRestored={(data) => {
+            setTab("training");
+            setProgramData(data);
+          }}
+        />
+      </Box>
     </Container>
   );
 }

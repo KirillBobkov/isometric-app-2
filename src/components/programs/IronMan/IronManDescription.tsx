@@ -102,17 +102,17 @@ export function IronManDescription() {
                     <TableBody>
                       <TableRow>
                         <TableCell rowSpan={3}>1</TableCell>
-                        <TableCell>Подъем штанги с пола</TableCell>
+                        <TableCell>Становая тяга</TableCell>
                         <TableCell>1</TableCell>
                         <TableCell>120 сек</TableCell>
                       </TableRow>
                       <TableRow>
-                        <TableCell>Голландцы</TableCell>
+                        <TableCell>Подьем на бицепс</TableCell>
                         <TableCell>1</TableCell>
                         <TableCell>120 сек</TableCell>
                       </TableRow>
                       <TableRow>
-                        <TableCell>Пресс от груди</TableCell>
+                        <TableCell>Жим плечами стоя</TableCell>
                         <TableCell>1</TableCell>
                         <TableCell>120 сек</TableCell>
                       </TableRow>
@@ -121,7 +121,7 @@ export function IronManDescription() {
                       </TableRow>
                       <TableRow>
                         <TableCell rowSpan={3}>2</TableCell>
-                        <TableCell>Фронтальные выпады</TableCell>
+                        <TableCell>Фронтальный присед</TableCell>
                         <TableCell>1</TableCell>
                         <TableCell>60 сек</TableCell>
                       </TableRow>

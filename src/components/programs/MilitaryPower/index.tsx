@@ -5,7 +5,6 @@ import {
   Typography,
   Box,
   Card,
-  CardContent,
   Switch,
   styled,
   FormControl,
@@ -77,10 +76,10 @@ const MODE_COLORS: Record<ActiveMode, string> = {
 
 const currentDay = Math.floor(new Date().setHours(0, 0, 0, 0));
 
-const defaultMilitaryPowerData: ProgramData = {
+const DEFAULT_MILITARY_POWER_DATA: ProgramData = {
   [currentDay]: {
-    MILITARY_DEADLIFT: { 1: [] },
-    MILITARY_SHOULDER_PRESS: { 1: [] },
+    DEADLIFT: { 1: [] },
+    SHOULDER_PRESS: { 1: [] },
   },
 };
 
@@ -125,7 +124,7 @@ export function MilitaryPower({
   const [selectedDate, setSelectedDate] = useState<number>(currentDay);
   const [programData, setProgramData] = useState<ProgramData>(() => {
     const storedData = LocalStorageService.getProgramData("MILITARY_POWER");
-    return mergeData(storedData, defaultMilitaryPowerData);
+    return mergeData(storedData, DEFAULT_MILITARY_POWER_DATA);
   });
 
   const [feedbackData, setFeedbackData] = useState<SetDataPoint[]>([]);
@@ -135,8 +134,8 @@ export function MilitaryPower({
     selected: 1,
   });
   const [selectedExercise, setSelectedExercise] = useState<
-    "MILITARY_DEADLIFT" | "MILITARY_SHOULDER_PRESS"
-  >("MILITARY_DEADLIFT");
+    "SHOULDER_PRESS" | "DEADLIFT"
+  >("DEADLIFT");
 
   const [modeTimeline, setModeTimeline] = useState<ModeTimeline>({
     mode: ActiveMode.DEFAULT,
@@ -168,7 +167,7 @@ export function MilitaryPower({
       ...prev,
       [currentDay]: {
         ...prev[currentDay],
-        ...defaultMilitaryPowerData[currentDay],
+        ...DEFAULT_MILITARY_POWER_DATA[currentDay],
         [selectedExercise]: {
           1: [],
         },
@@ -186,9 +185,7 @@ export function MilitaryPower({
   };
 
   const handleExerciseChange = (value: string) => {
-    setSelectedExercise(
-      value as "MILITARY_DEADLIFT" | "MILITARY_SHOULDER_PRESS"
-    );
+    setSelectedExercise(value as "SHOULDER_PRESS" | "DEADLIFT");
     setTab("training");
   };
 
@@ -366,6 +363,10 @@ export function MilitaryPower({
     modeTimeline.mode !== ActiveMode.DEFAULT &&
     modeTimeline.mode !== ActiveMode.FINISH;
 
+  const setCount = Object.keys(
+    programData[selectedDate]?.[selectedExercise] || {}
+  ).length;
+
   return (
     <Container maxWidth="lg" sx={{ p: 0 }}>
       <Typography
@@ -379,21 +380,7 @@ export function MilitaryPower({
       </Typography>
       <MilitaryPowerDescription />
 
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: { xs: "center", md: "center" },
-          flex: { xs: "1 1 100%", md: 1 },
-          mt: { xs: 3, md: 0 },
-          mb: 6,
-        }}
-      >
-        <FileOperations
-          programKey="MILITARY_POWER"
-          disabled={trainigInProgress}
-          onDataRestored={onRestore}
-        />
-      </Box>
+
       <Box
         sx={{
           display: "flex",
@@ -430,8 +417,8 @@ export function MilitaryPower({
               value={selectedExercise}
               onChange={handleExerciseChange}
               exercises={[
-                { value: "MILITARY_DEADLIFT", label: "СТАНОВАЯ ТЯГА" },
-                { value: "MILITARY_SHOULDER_PRESS", label: "ЖИМ ПЛЕЧ" },
+                { value: "DEADLIFT", label: "СТАНОВАЯ ТЯГА" },
+                { value: "SHOULDER_PRESS", label: "ЖИМ ПЛЕЧАМИ СТОЯ" },
               ]}
             />
 
@@ -506,31 +493,17 @@ export function MilitaryPower({
               flexGrow: 1,
             }}
           >
-            <CardContent
-              sx={{
-                flexGrow: 1,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              align="center"
+              sx={{ mb: 1 }}
             >
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                align="center"
-                sx={{ mb: 1 }}
-              >
-                Максимальный вес, поднятый в подходе № {set.selected}
-              </Typography>
-              <Typography
-                variant="h1"
-                align="center"
-                sx={{ fontWeight: "bold" }}
-              >
-                {`${maxWeight.toFixed(1)} кг`}
-              </Typography>
-            </CardContent>
+              Максимальный вес, поднятый в подходе № {set.selected}
+            </Typography>
+            <Typography variant="h1" align="center" sx={{ fontWeight: "bold" }}>
+              {`${maxWeight.toFixed(1)} кг`}
+            </Typography>
           </Card>
 
           <Card
@@ -543,31 +516,17 @@ export function MilitaryPower({
               flexGrow: 1,
             }}
           >
-            <CardContent
-              sx={{
-                flexGrow: 1,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              align="center"
+              sx={{ mb: 1 }}
             >
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                align="center"
-                sx={{ mb: 1 }}
-              >
-                Максимальный вес, поднятый за всю тренировку
-              </Typography>
-              <Typography
-                variant="h1"
-                align="center"
-                sx={{ fontWeight: "bold" }}
-              >
-                {`${maxWeightForAllSets.toFixed(1)} кг`}
-              </Typography>
-            </CardContent>
+              Максимальный вес, поднятый за всю тренировку
+            </Typography>
+            <Typography variant="h1" align="center" sx={{ fontWeight: "bold" }}>
+              {`${maxWeightForAllSets.toFixed(1)} кг`}
+            </Typography>
           </Card>
         </Box>
       </Box>
@@ -596,6 +555,7 @@ export function MilitaryPower({
           flexDirection: { xs: "column", md: "column" },
           gap: 0,
           p: 2,
+          mb: 4,
           borderRadius: 4,
         }}
       >
@@ -633,10 +593,8 @@ export function MilitaryPower({
                       </Select>
                     </FormControl>
 
-                    {Object.keys(
-                      programData[selectedDate]?.[selectedExercise] || {}
-                    ).length > 1 && (
-                      <FormControl sx={{ minWidth: 200 }}>
+                    {setCount > 1 && (
+                      <FormControl>
                         <InputLabel id="set-select-label">
                           Выберите запись подхода
                         </InputLabel>
@@ -647,18 +605,11 @@ export function MilitaryPower({
                           onChange={handleSetChange}
                           size="small"
                         >
-                          {new Array(
-                            Object.keys(
-                              programData[selectedDate]?.[selectedExercise] ||
-                                {}
-                            ).length
-                          )
-                            .fill(0)
-                            .map((_, index) => (
-                              <MenuItem key={index + 1} value={index + 1}>
-                                Подход № {index + 1}
-                              </MenuItem>
-                            ))}
+                          {new Array(setCount).fill(0).map((_, index) => (
+                            <MenuItem key={index + 1} value={index + 1}>
+                              Подход № {index + 1}
+                            </MenuItem>
+                          ))}
                         </Select>
                       </FormControl>
                     )}
@@ -673,6 +624,21 @@ export function MilitaryPower({
           )}
         </Box>
       </Card>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: { xs: "center", md: "center" },
+          flex: { xs: "1 1 100%", md: 1 },
+          mt: { xs: 3, md: 0 },
+          mb: 6,
+        }}
+      >
+        <FileOperations
+          programKey="MILITARY_POWER"
+          disabled={trainigInProgress}
+          onDataRestored={onRestore}
+        />
+      </Box>
     </Container>
   );
 }
