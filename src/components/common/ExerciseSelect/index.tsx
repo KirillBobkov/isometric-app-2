@@ -24,6 +24,7 @@ export function ExerciseSelect({
   exercises,
   label = "ВЫБЕРИТЕ УПРАЖНЕНИЕ",
 }: ExerciseSelectProps) {
+  
   const handleChange = (event: SelectChangeEvent<string>) => {
     onChange(event.target.value);
   };
@@ -50,7 +51,6 @@ export function ExerciseSelect({
           },
         }}
       >
-        <MenuItem value="">Не выбрано</MenuItem>
         {exercises.map((exercise) => (
           <MenuItem key={exercise.value} value={exercise.value}>
             {exercise.label}

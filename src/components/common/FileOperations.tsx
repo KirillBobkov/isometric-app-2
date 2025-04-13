@@ -1,23 +1,16 @@
 import { Button, Box, Tooltip } from "@mui/material";
 import { Upload, Download } from "lucide-react";
-
-import { saveTrainingData, restoreTrainingData, ProgramKey, ProgramData, TrainingData } from "../../services/FileService";
+import { ProgramKey } from "../../services/types";
+import { TrainingData } from "../../services/types";
+import { ProgramData } from "../../services/types";
+import { FileService } from "../../services/FileService";
+import { LocalStorageService } from "../../services/LocalStorageService";
 
 interface FileOperationsProps {
   /**
    * Флаг отключения кнопок
    */
   disabled: boolean;
-  
-  /**
-   * Данные тренировки для сохранения или генерации отчета
-   */
-  programData: ProgramData;
-  
-  /**
-   * Флаг, указывающий есть ли данные для сохранения/отчета
-   */
-  hasData: boolean;
   
   /**
    * Callback вызываемый после успешного восстановления данных
@@ -31,18 +24,19 @@ interface FileOperationsProps {
  */
 export const FileOperations: React.FC<FileOperationsProps> = ({
   disabled,
-  programData,
-  hasData,
   onDataRestored,
   programKey,   
 }) => {
   // Сохранение тренировки в JSON
   const handleSaveTraining = async () => {
     try {
-      await saveTrainingData(programKey, programData);
+      const data = LocalStorageService.getData();
+      if (!data) {
+        return;
+      }
+      await FileService.saveToFile(data);
     } catch (error) {
       console.error("Ошибка при сохранении тренировки:", error);
-      alert("Не удалось сохранить данные тренировки");
     }
   };
 
@@ -52,14 +46,13 @@ export const FileOperations: React.FC<FileOperationsProps> = ({
     if (!file) return;
 
     try {
-      const restoredData = await restoreTrainingData(file);
+      const restoredData = await FileService.loadFromFile(file);
       if (restoredData && onDataRestored) {
         const programData = (restoredData as TrainingData)[programKey] || {};
         onDataRestored(programData);
       }
     } catch (error) {
       console.error("Ошибка при загрузке тренировки:", error);
-      alert("Не удалось загрузить данные тренировки");
     }
   };
 
@@ -83,7 +76,7 @@ export const FileOperations: React.FC<FileOperationsProps> = ({
             size="large"
             startIcon={<Download size={24} />}
             onClick={handleSaveTraining}
-            disabled={disabled || !hasData}
+            disabled={disabled}
             sx={{
               borderRadius: "28px",
               padding: "12px 32px",
