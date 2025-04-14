@@ -262,13 +262,13 @@ export function MilitaryPower({
 
   useEffect(() => {
     if (modeTimeline.mode === ActiveMode.REST) {
-      soundService.play("rest");
+      soundService.play("sound_rest_60_sec");
     } else if (modeTimeline.mode === ActiveMode.SET) {
-      soundService.play("start_with_max");
+      soundService.play("sound_start_with_max");
     } else if (modeTimeline.mode === ActiveMode.PREPARING) {
-      soundService.play("prepare");
+      soundService.play("sound_prepare");
     } else if (modeTimeline.mode === ActiveMode.FINISH) {
-      soundService.play("finish");
+      soundService.play("sound_training_finish");
     }
   }, [modeTimeline.mode]);
 

@@ -113,7 +113,6 @@ interface ModeTimeline {
   endTime: number;
 }
 
-
 const StyledSwitch = styled(Switch)(() => ({
   width: 70,
   height: 48,
@@ -204,7 +203,7 @@ export function IronMan({
     setProgramData((prev) => ({
       ...prev,
       [currentDay]: {
-        ...prev[currentDay] || {},
+        ...(prev[currentDay] || {}),
         [selectedExercise]: {
           1: [],
         },
@@ -260,17 +259,17 @@ export function IronMan({
 
   useEffect(() => {
     if (modeTimeline.mode === ActiveMode.PREPARING) {
-      soundService.play("prepare_with_max");
+      soundService.play("sound_prepare_with_max");
     } else if (modeTimeline.mode === ActiveMode.CHECK_MAX_WEIGHT) {
-      soundService.play("start_with_max");
+      soundService.play("sound_start_with_max");
     } else if (modeTimeline.mode === ActiveMode.SET) {
       if (diapason === 20) {
-        soundService.play("start_with_120_sec");
+        soundService.play("sound_start_with_120_sec");
       } else {
-        soundService.play("start_with_60_sec");
+        soundService.play("sound_start_with_60_sec");
       }
     } else if (modeTimeline.mode === ActiveMode.FINISH) {
-      soundService.play("exersise_finished");
+      soundService.play("sound_exersise_finished");
     }
   }, [modeTimeline.mode, diapason]);
 
@@ -294,10 +293,7 @@ export function IronMan({
   if (time !== previousTime && connected) {
     // Обработка данных от тренажера
     if (modeTimeline.mode === ActiveMode.DEFAULT) {
-      setFeedbackData((prev) => [
-        ...prev,
-        { t: time, w: parseFloat(message) },
-      ]);
+      setFeedbackData((prev) => [...prev, { t: time, w: parseFloat(message) }]);
     } else if (modeTimeline.mode === ActiveMode.CHECK_MAX_WEIGHT) {
       setProgramData((prev) => ({
         ...prev,
@@ -361,17 +357,39 @@ export function IronMan({
 
   const setCount = Object.keys(
     programData[selectedDate]?.[selectedExercise] || {}
-  ).filter(key => key !== 'maxWeight').length;
+  ).filter((key) => key !== "maxWeight").length;
 
   const maxWeight =
     programData[selectedDate]?.[selectedExercise]?.maxWeight || 0;
 
   const calculateAverageWeight = () => {
-    const currentSetData = programData[selectedDate]?.[selectedExercise]?.[set.selected] || [];
-    return currentSetData.length > 0 
-      ? (currentSetData.reduce((acc, curr) => acc + curr.w, 0) / currentSetData.length).toFixed(1) 
+    const currentSetData =
+      programData[selectedDate]?.[selectedExercise]?.[set.selected] || [];
+    return currentSetData.length > 0
+      ? (
+          currentSetData.reduce((acc, curr) => acc + curr.w, 0) /
+          currentSetData.length
+        ).toFixed(1)
       : 0;
   };
+
+  // Moving sound logic to useEffect to prevent excessive calls during render
+  useEffect(() => {
+    if (modeTimeline.mode === ActiveMode.SET && maxWeight > 0 && message) {
+      const currentValue = Math.round((Number(message) / maxWeight) * 100);
+      
+      console.log(currentValue, diapason);
+
+      if (currentValue !== 0) {
+        if (currentValue > (diapason + 10)) {
+          soundService.play("sound_go_high");
+        } 
+        if (currentValue < (diapason - 10)) {
+          soundService.play("sound_go_low");
+        }
+      }
+    }
+  }, [modeTimeline.mode, maxWeight, message, diapason]);
 
   return (
     <Container maxWidth="lg" sx={{ p: 0 }}>
@@ -509,7 +527,7 @@ export function IronMan({
                     : 0;
 
                 if (currentValue === 0) return "none";
-                return Math.abs(currentValue - diapason) > 5
+                return Math.abs(currentValue - diapason) > 10
                   ? "rgb(120, 18, 18)"
                   : "rgb(35, 142, 39)";
               })(),
@@ -574,9 +592,7 @@ export function IronMan({
               Среднее значение
             </Typography>
             <Typography variant="h1" align="center" sx={{ fontWeight: "bold" }}>
-              {`${
-                calculateAverageWeight()
-              } кг`}
+              {`${calculateAverageWeight()} кг`}
             </Typography>
           </Card>
         </Box>

@@ -20,7 +20,7 @@ import { soundService } from "./services/SoundService";
 import { MilitaryPower } from "./components/programs/MilitaryPower/index";
 import { ArrowLeftIcon } from "lucide-react";
 
-const bluetoothService = new MockBluetoothService();
+const bluetoothService = new BluetoothService();
 
 export default function App() {
   const [connected, setConnected] = useState(false);
@@ -61,7 +61,7 @@ export default function App() {
           bodyElement.click();
         }
 
-        soundService.play(status ? "connect" : "disconnect");
+        soundService.play(status ? "sound_connect" : "sound_disconnect");
       }
     }, 1000);
     return () => clearInterval(interval);
