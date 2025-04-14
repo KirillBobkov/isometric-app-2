@@ -1,6 +1,6 @@
 export interface SetDataPoint {
-  time: number;
-  weight: number;
+  t: number;
+  w: number;
 }
 
 export const PROGRAMS = {

@@ -30,6 +30,7 @@ export const Chart: React.FC<ChartProps> = ({
     >
       <CardContent sx={{ flexGrow: 1, p: 1 }}>
         <LineChart
+          
           xAxis={[
             {
               id: "time",
@@ -69,6 +70,7 @@ export const Chart: React.FC<ChartProps> = ({
               message: "Запись отсутствует",
             }
           }}
+          skipAnimation={true}
         />
       </CardContent>
     </Card>

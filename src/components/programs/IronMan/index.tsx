@@ -29,6 +29,7 @@ import {
   ProgramData,
   ExerciseKey,
   DayData,
+  SetDataPoint,
 } from "../../../services/types";
 import { LocalStorageService } from "../../../services/LocalStorageService";
 import { mergeData } from "../../../utils/mergeData";
@@ -39,7 +40,7 @@ enum ActiveMode {
   PREPARING = "preparing",
   CHECK_MAX_WEIGHT = "check_max_weight",
   SET = "set",
-  FINISHED = "finished",
+  FINISH = "FINISH",
 }
 
 export const SET_TIME = 120 * 1000;
@@ -62,7 +63,7 @@ export const getStatusMessage = (
       return "Удерживайте весь в диапазоне";
     case ActiveMode.DEFAULT:
       return "Если вы готовы, то выберите упражнение и нажмите на кнопку 'Начать упражнение'";
-    case ActiveMode.FINISHED:
+    case ActiveMode.FINISH:
       return "Тренировка завершена";
     default:
       return "";
@@ -99,7 +100,7 @@ const MODE_COLORS: Record<ActiveMode, string> = {
   [ActiveMode.SET]: "rgb(229, 67, 67)", // Red
   [ActiveMode.CHECK_MAX_WEIGHT]: "rgb(229, 67, 67)", // Red
   [ActiveMode.DEFAULT]: "rgb(25, 167, 255)", // Blue
-  [ActiveMode.FINISHED]: "rgb(25, 167, 255)", // Blue
+  [ActiveMode.FINISH]: "rgb(25, 167, 255)", // Blue
 };
 
 const exercises = [
@@ -112,10 +113,6 @@ interface ModeTimeline {
   endTime: number;
 }
 
-type SetDataPoint = {
-  time: number;
-  weight: number;
-};
 
 const StyledSwitch = styled(Switch)(() => ({
   width: 70,
@@ -190,15 +187,13 @@ export function IronMan({
       return;
     }
 
-    LocalStorageService.saveProgramData("IRON_MAN", programData);
-
     setModeTimeline({
-      mode: ActiveMode.DEFAULT,
+      mode: ActiveMode.FINISH,
       startTime: time,
       endTime: time + DEFAULT_TIME,
     });
 
-    await soundService.play("exersise_finished");
+    LocalStorageService.saveProgramData("IRON_MAN", programData);
   };
 
   const startTraining = () => {
@@ -209,8 +204,7 @@ export function IronMan({
     setProgramData((prev) => ({
       ...prev,
       [currentDay]: {
-        ...prev[currentDay],
-        ...DEFAULT_IRON_MAN_DATA[currentDay],
+        ...prev[currentDay] || {},
         [selectedExercise]: {
           1: [],
         },
@@ -249,10 +243,9 @@ export function IronMan({
 
   // Получение данных для графика
   const getTrainingChartData = () => {
-    const limitedData = dataForRender.slice(-50);
     return {
-      xAxis: limitedData.map((data) => data.time),
-      yAxis: limitedData.map((data) => data.weight),
+      xAxis: dataForRender.map((data) => data.t),
+      yAxis: dataForRender.map((data) => data.w),
       title: `Подход ${set.selected}`,
     };
   };
@@ -276,6 +269,8 @@ export function IronMan({
       } else {
         soundService.play("start_with_60_sec");
       }
+    } else if (modeTimeline.mode === ActiveMode.FINISH) {
+      soundService.play("exersise_finished");
     }
   }, [modeTimeline.mode, diapason]);
 
@@ -301,7 +296,7 @@ export function IronMan({
     if (modeTimeline.mode === ActiveMode.DEFAULT) {
       setFeedbackData((prev) => [
         ...prev,
-        { time, weight: parseFloat(message) },
+        { t: time, w: parseFloat(message) },
       ]);
     } else if (modeTimeline.mode === ActiveMode.CHECK_MAX_WEIGHT) {
       setProgramData((prev) => ({
@@ -326,7 +321,7 @@ export function IronMan({
             ...prev[selectedDate]?.[selectedExercise],
             [set.current]: [
               ...(prev[selectedDate]?.[selectedExercise]?.[set.current] || []),
-              { time, weight: parseFloat(message) },
+              { t: time, w: parseFloat(message) },
             ],
           },
         },
@@ -362,14 +357,21 @@ export function IronMan({
 
   const trainigInProgress =
     modeTimeline.mode !== ActiveMode.DEFAULT &&
-    modeTimeline.mode !== ActiveMode.FINISHED;
+    modeTimeline.mode !== ActiveMode.FINISH;
 
   const setCount = Object.keys(
     programData[selectedDate]?.[selectedExercise] || {}
-  ).length;
+  ).filter(key => key !== 'maxWeight').length;
 
   const maxWeight =
     programData[selectedDate]?.[selectedExercise]?.maxWeight || 0;
+
+  const calculateAverageWeight = () => {
+    const currentSetData = programData[selectedDate]?.[selectedExercise]?.[set.selected] || [];
+    return currentSetData.length > 0 
+      ? (currentSetData.reduce((acc, curr) => acc + curr.w, 0) / currentSetData.length).toFixed(1) 
+      : 0;
+  };
 
   return (
     <Container maxWidth="lg" sx={{ p: 0 }}>
@@ -416,7 +418,7 @@ export function IronMan({
             }}
           >
             <ExerciseSelect
-              disabled={modeTimeline.mode !== ActiveMode.DEFAULT}
+              disabled={trainigInProgress}
               exercises={exercises}
               value={selectedExercise}
               onChange={(value) => {
@@ -573,12 +575,7 @@ export function IronMan({
             </Typography>
             <Typography variant="h1" align="center" sx={{ fontWeight: "bold" }}>
               {`${
-                (() => {
-                  const currentSetData = programData[selectedDate]?.[selectedExercise]?.[set.selected] || [];
-                  return currentSetData.length > 0 
-                    ? (currentSetData.reduce((acc, curr) => acc + curr.weight, 0) / currentSetData.length).toFixed(1) 
-                    : 0;
-                })()
+                calculateAverageWeight()
               } кг`}
             </Typography>
           </Card>

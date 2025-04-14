@@ -166,8 +166,7 @@ export function MilitaryPower({
     setProgramData((prev) => ({
       ...prev,
       [currentDay]: {
-        ...prev[currentDay],
-        ...DEFAULT_MILITARY_POWER_DATA[currentDay],
+        ...prev[currentDay] || {},
         [selectedExercise]: {
           1: [],
         },
@@ -224,7 +223,7 @@ export function MilitaryPower({
   const maxWeight =
     dataForRender.length > 0
       ? dataForRender.reduce(
-          (max: number, point: SetDataPoint) => Math.max(max, point.weight),
+          (max: number, point: SetDataPoint) => Math.max(max, point.w),
           0
         )
       : 0;
@@ -241,17 +240,16 @@ export function MilitaryPower({
   const maxWeightForAllSets =
     allSetData.length > 0
       ? allSetData.reduce(
-          (max: number, point: SetDataPoint) => Math.max(max, point.weight),
+          (max: number, point: SetDataPoint) => Math.max(max, point.w),
           0
         )
       : 0;
 
   // Получение данных для графика
   const getTrainingChartData = () => {
-    const limitedData = dataForRender.slice(-50);
     return {
-      xAxis: limitedData.map((data: SetDataPoint) => data.time),
-      yAxis: limitedData.map((data: SetDataPoint) => data.weight),
+      xAxis: dataForRender.map((data: SetDataPoint) => data.t),
+      yAxis: dataForRender.map((data: SetDataPoint) => data.w),
       title: `Подход ${set.selected}`,
     };
   };
@@ -295,7 +293,7 @@ export function MilitaryPower({
     if (modeTimeline.mode === ActiveMode.DEFAULT) {
       setFeedbackData((prev) => [
         ...prev,
-        { time, weight: parseFloat(message) },
+        { t: time, w: parseFloat(message) },
       ]);
     } else if (modeTimeline.mode === ActiveMode.SET) {
       setProgramData((prev) => ({
@@ -306,7 +304,7 @@ export function MilitaryPower({
             ...(prev[selectedDate]?.[selectedExercise] || {}),
             [set.current]: [
               ...(prev[selectedDate]?.[selectedExercise]?.[set.current] || []),
-              { time, weight: parseFloat(message) },
+              { t: time, w: parseFloat(message) },
             ],
           },
         },

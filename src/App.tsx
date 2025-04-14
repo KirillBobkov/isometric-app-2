@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import {
   Box,
-  Button,
   Container,
   CssBaseline,
   ThemeProvider,
@@ -10,6 +9,7 @@ import { appTheme } from "./assets/theme";
 import { Header } from "./components/Header";
 import { Routes, Route, useLocation, Link } from "react-router-dom";
 import { ProgramList } from "./components/ProgramList";
+import { NotificationProvider } from "./components/common/Notification";
 
 import { Promethean } from "./components/programs/Promethean";
 import { PrometheanMarkII } from "./components/programs/PrometheanMarkII";
@@ -71,52 +71,54 @@ export default function App() {
   return (
     <ThemeProvider theme={appTheme}>
       <CssBaseline />
-      <Box sx={{ flexGrow: 1 }}>
-        <Header
-          connected={connected}
-          onToggleConnect={() =>
-            !connected ? handleConnect() : handleDisconnect()
-          }
-        />
-        <Container
-          maxWidth="lg"
-          sx={{
-            mt: 20,
-            mb: 4,
-          }}
-        >
-          {location.pathname !== "/" && (
-            <Link to="/" style={{ 
-              position: "absolute", 
-              top: "90px", 
-              left: "16px", 
-              display: "flex", 
-              alignItems: "center",
-              color: "inherit",
-              textDecoration: "none" 
-            }}>
-              <ArrowLeftIcon style={{ marginRight: "5px" }} />
-              НАЗАД
-            </Link>
-          )}
+      <NotificationProvider>
+        <Box sx={{ flexGrow: 1 }}>
+          <Header
+            connected={connected}
+            onToggleConnect={() =>
+              !connected ? handleConnect() : handleDisconnect()
+            }
+          />
+          <Container
+            maxWidth="lg"
+            sx={{
+              mt: 20,
+              mb: 4,
+            }}
+          >
+            {location.pathname !== "/" && (
+              <Link to="/" style={{ 
+                position: "absolute", 
+                top: "90px", 
+                left: "16px", 
+                display: "flex", 
+                alignItems: "center",
+                color: "inherit",
+                textDecoration: "none" 
+              }}>
+                <ArrowLeftIcon style={{ marginRight: "5px" }} />
+                НАЗАД
+              </Link>
+            )}
 
-          <Routes>
-            <Route path="/promethean" element={<Promethean />} />
-            <Route path="/promethean-2" element={<PrometheanMarkII />} />
-            <Route
-              path="/military-power"
-              element={
-                <MilitaryPower connected={connected} message={message} />
-              }
-            />
-            <Route
-              path="/iron-man"
-              element={<IronMan connected={connected} message={message} />}
-            />
-            <Route path="*" element={<ProgramList />} />
-          </Routes>
-        </Container>
-      </Box>
+            <Routes>
+              <Route path="/promethean" element={<Promethean />} />
+              <Route path="/promethean-2" element={<PrometheanMarkII />} />
+              <Route
+                path="/military-power"
+                element={
+                  <MilitaryPower connected={connected} message={message} />
+                }
+              />
+              <Route
+                path="/iron-man"
+                element={<IronMan connected={connected} message={message} />}
+              />
+              <Route path="*" element={<ProgramList />} />
+            </Routes>
+          </Container>
+        </Box>
+      </NotificationProvider>
     </ThemeProvider>
   );
 }

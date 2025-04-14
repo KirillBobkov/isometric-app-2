@@ -6,6 +6,7 @@ import { ProgramData } from "../../services/types";
 import { FileService } from "../../services/FileService";
 import { LocalStorageService } from "../../services/LocalStorageService";
 import { mergeData } from "../../utils/mergeData";
+import { useNotification } from "./Notification";
 
 interface FileOperationsProps {
   /**
@@ -28,17 +29,22 @@ export const FileOperations: React.FC<FileOperationsProps> = ({
   onDataRestored,
   programKey,   
 }) => {
+  const { showNotification } = useNotification();
+
   // Сохранение тренировки в JSON
   const handleSaveTraining = async () => {
     try {
       const data = LocalStorageService.getData();
       if (!data) {
         console.error("Нет данных для сохранения");
+        showNotification("Нет данных для сохранения", "error");
         return;
       }
       await FileService.saveToFile(data);
+      showNotification("История тренировок успешно сохранена", "success");
     } catch (error) {
       console.error("Ошибка при сохранении тренировки:", error);
+      showNotification("Ошибка при сохранении истории тренировок", "error");
     }
   };
 
@@ -57,9 +63,11 @@ export const FileOperations: React.FC<FileOperationsProps> = ({
 
         const programData = (merged as TrainingData)[programKey] || {};
         onDataRestored(programData);
+        showNotification("История тренировок успешно загружена", "success");
       }
     } catch (error) {
       console.error("Ошибка при загрузке тренировки:", error);
+      showNotification("Ошибка при загрузке истории тренировок", "error");
     }
   };
 

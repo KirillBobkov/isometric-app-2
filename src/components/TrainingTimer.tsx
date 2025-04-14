@@ -1,6 +1,6 @@
-import { FC } from 'react';
+import { FC, useMemo, useRef, useEffect } from 'react';
 import { Box, Typography } from '@mui/material';
-import { motion } from 'framer-motion';
+import { motion, useMotionValue } from 'framer-motion';
 import { formatTime } from '../utils/formatTime';
 import { calculateProgress } from '../utils/circleProgress';
 // Circle constants
@@ -17,6 +17,21 @@ export const TrainingTimer: FC<TrainingTimerProps> = ({
   totalTime,
   color,
 }) => {
+  // Используем useMotionValue для оптимизации, чтобы избежать ререндеров всего компонента
+  const progress = useMotionValue(calculateProgress(time, totalTime));
+  const prevTimeRef = useRef(time);
+
+  // Обновляем значение progress только когда time меняется
+  useEffect(() => {
+    if (prevTimeRef.current !== time) {
+      progress.set(calculateProgress(time, totalTime));
+      prevTimeRef.current = time;
+    }
+  }, [time, totalTime, progress]);
+
+  // Мемоизируем форматированное время для предотвращения ненужных вычислений
+  const formattedTime = useMemo(() => formatTime(time), [time]);
+
   return (
     <div>
       <Box
@@ -37,6 +52,7 @@ export const TrainingTimer: FC<TrainingTimerProps> = ({
           style={{
             position: 'absolute',
             transform: 'rotate(-90deg)', // Поворачиваем, чтобы начало было сверху
+            willChange: 'transform', // Подсказка браузеру об анимации для GPU-ускорения
           }}
         >
           {/* Фоновый круг */}
@@ -57,19 +73,14 @@ export const TrainingTimer: FC<TrainingTimerProps> = ({
             stroke={color}
             strokeWidth="8"
             strokeDasharray={CIRCLE_CIRCUMFERENCE}
-            strokeDashoffset={calculateProgress(
-              time,
-              totalTime
-            )}
+            strokeDashoffset={progress}
             strokeLinecap="round"
             initial={false}
-            animate={{
-              strokeDashoffset: calculateProgress(
-              time,
-              totalTime
-              )
+            style={{ strokeDashoffset: progress }}
+            transition={{ 
+              ease: 'linear',
+              duration: 0.3 
             }}
-            transition={{ duration: 0.1 }}
           />
         </svg>
         
@@ -92,7 +103,7 @@ export const TrainingTimer: FC<TrainingTimerProps> = ({
               textAlign: 'center',
             }}
           >
-            {formatTime(time)}
+            {formattedTime}
           </Typography>
         </div>
       </Box>
