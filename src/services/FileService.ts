@@ -1,4 +1,43 @@
-import { TrainingData } from './types';
+import { TrainingData, ProgramKey, ExerciseKey } from './types';
+import { PROGRAMS, EXERCISES } from './types';
+import { z } from 'zod';
+
+// Создаем Zod схему для валидации структуры данных
+const SetDataPointSchema = z.object({
+  t: z.number(),
+  w: z.number()
+});
+
+const ExerciseDataSchema = z.object({
+  maxWeight: z.number().optional()
+}).catchall(
+  z.array(SetDataPointSchema)
+);
+
+const DayDataSchema = z.record(
+  z.enum(Object.keys(EXERCISES) as [ExerciseKey, ...ExerciseKey[]]), 
+  ExerciseDataSchema
+);
+
+const ProgramDataSchema = z.record(
+  z.string().transform((val, ctx) => {
+    const num = Number(val);
+    if (isNaN(num)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Неверный формат даты: ${val}`,
+      });
+      return z.NEVER;
+    }
+    return num;
+  }),
+  DayDataSchema
+);
+
+const TrainingDataSchema = z.record(
+  z.enum(Object.keys(PROGRAMS) as [ProgramKey, ...ProgramKey[]]),
+  ProgramDataSchema
+);
 
 export class FileService {
   static async saveToFile(data: TrainingData): Promise<boolean> {
@@ -31,13 +70,16 @@ export class FileService {
   static async loadFromFile(file: File): Promise<TrainingData | null> {
     try {
       const text = await file.text();
-      const json = JSON.parse(text);
+      const json: unknown = JSON.parse(text);
 
-      if (!json) {
-        throw new Error("Invalid file format");
+      const result = TrainingDataSchema.safeParse(json);
+      
+      if (!result.success) {
+        console.error("Ошибки валидации данных:", result.error.format());
+        throw new Error("Некорректный формат данных тренировки");
       }
 
-      return json;
+      return result.data;
     } catch (error) {
       console.error("Error loading training data from file:", error);
       return null;

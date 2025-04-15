@@ -64,10 +64,13 @@ export const FileOperations: React.FC<FileOperationsProps> = ({
         const programData = (merged as TrainingData)[programKey] || {};
         onDataRestored(programData);
         showNotification("История тренировок успешно загружена", "success");
+      } else {
+        throw new Error("Не удалось загрузить историю тренировок, содержимое не соответствует формату");
       }
     } catch (error) {
       console.error("Ошибка при загрузке тренировки:", error);
-      showNotification("Ошибка при загрузке истории тренировок", "error");
+      showNotification("Не удалось загрузить историю тренировок, содержимое не соответствует формату", "error");
+      event.target.value = '';
     }
   };
 
