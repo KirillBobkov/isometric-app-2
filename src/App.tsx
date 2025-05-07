@@ -17,8 +17,9 @@ import { MockBluetoothService } from "./services/MockBluetoothService";
 import { MilitaryPower } from "./components/programs/MilitaryPower/index";
 import { ArrowLeftIcon } from "lucide-react";
 import { useBluetoothConnection } from "./hooks/useBluetoothConnection";
+import { BluetoothService } from "./services/BluetoothService";
 
-const bluetoothService = new MockBluetoothService();
+const bluetoothService = new BluetoothService();
 
 export default function App() {
   const location = useLocation();
