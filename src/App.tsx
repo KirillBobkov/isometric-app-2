@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import {
   Box,
   Container,
@@ -15,58 +14,21 @@ import { Promethean } from "./components/programs/Promethean";
 import { PrometheanMarkII } from "./components/programs/PrometheanMarkII";
 import { IronMan } from "./components/programs/IronMan/index";
 import { MockBluetoothService } from "./services/MockBluetoothService";
-import { BluetoothService } from "./services/BluetoothService.js";
-import { soundService } from "./services/SoundService";
 import { MilitaryPower } from "./components/programs/MilitaryPower/index";
 import { ArrowLeftIcon } from "lucide-react";
+import { useBluetoothConnection } from "./hooks/useBluetoothConnection";
 
-const bluetoothService = new BluetoothService();
+const bluetoothService = new MockBluetoothService();
 
 export default function App() {
-  const [connected, setConnected] = useState(false);
-  const [message, setMessage] = useState<string>("0");
   const location = useLocation();
 
-  // Подключение к устройству
-  const handleConnect = async () => {
-    try {
-      const notifications$ = bluetoothService.connect();
-      notifications$.subscribe({
-        next: (value: any) => {
-          // console.log("value", value);
-          setMessage(value);
-        },
-        error: (err: any) => {
-          console.error("Ошибка при получении данных:", err);
-        },
-      });
-    } catch (error) {
-      console.error("Ошибка подключения:", error);
-    }
-  };
-
-  // Отключение от устройства
-  const handleDisconnect = () => {
-    bluetoothService.disconnect();
-  };
-
-  // Обновление статуса подключения
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const status = bluetoothService.getStatus();
-      if (connected !== status) {
-        setConnected(status);
-        const bodyElement = document.querySelector("body");
-        if (bodyElement) {
-          bodyElement.click();
-        }
-
-        soundService.play(status ? "sound_connect" : "sound_disconnect");
-      }
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [connected]);
-
+  const {
+    connected,
+    message,
+    handleConnect,
+    handleDisconnect,
+  } = useBluetoothConnection(bluetoothService);
 
   return (
     <ThemeProvider theme={appTheme}>

@@ -19,7 +19,7 @@ const DayDataSchema = z.record(
   ExerciseDataSchema
 );
 
-const ProgramDataSchema = z.record(
+export const ProgramDataSchema = z.record(
   z.string().transform((val, ctx) => {
     const num = Number(val);
     if (isNaN(num)) {
@@ -34,7 +34,7 @@ const ProgramDataSchema = z.record(
   DayDataSchema
 );
 
-const TrainingDataSchema = z.record(
+export const TrainingDataSchema = z.record(
   z.enum(Object.keys(PROGRAMS) as [ProgramKey, ...ProgramKey[]]),
   ProgramDataSchema
 );

@@ -23,12 +23,12 @@ import { Chart } from "../../Chart";
 import { soundService } from "../../../services/SoundService";
 import { usePrevious } from "../../../hooks/usePrevious";
 import { mergeData } from "../../../utils/mergeData";
-import { formatDate } from "../../../utils/dateUtils";
+import { formatDate } from "../../../utils/formatDate";
 
 import { ExerciseSelect } from "../../common/ExerciseSelect";
 import { FileOperations } from "../../common/FileOperations";
 import { ProgramData, SetDataPoint } from "../../../services/types";
-import { LocalStorageService } from "../../../services/LocalStorageService";
+import { StorageService } from "../../../services/StorageService";
 
 enum ActiveMode {
   DEFAULT = "default",
@@ -122,10 +122,15 @@ export function MilitaryPower({
   const { time } = useTimer(0, freezeTime);
 
   const [selectedDate, setSelectedDate] = useState<number>(currentDay);
-  const [programData, setProgramData] = useState<ProgramData>(() => {
-    const storedData = LocalStorageService.getProgramData("MILITARY_POWER");
-    return mergeData(storedData, DEFAULT_MILITARY_POWER_DATA);
-  });
+  const [programData, setProgramData] = useState<ProgramData>(DEFAULT_MILITARY_POWER_DATA);
+
+  useEffect(() => {
+    const loadProgramData = async () => {
+      const storedData = await StorageService.getProgramData("MILITARY_POWER");
+      setProgramData(mergeData(storedData, DEFAULT_MILITARY_POWER_DATA));
+    };
+    loadProgramData();
+  }, []);
 
   const [feedbackData, setFeedbackData] = useState<SetDataPoint[]>([]);
   const [tab, setTab] = useState<"feedback" | "training">("feedback");
@@ -145,11 +150,10 @@ export function MilitaryPower({
 
   const stopTraining = async () => {
     if (!connected) {
-      alert("Пожалуйста, подключите тренажер перед началом тренировки");
       return;
     }
 
-    LocalStorageService.saveProgramData("MILITARY_POWER", programData);
+    StorageService.saveProgramData("MILITARY_POWER", programData);
 
     setModeTimeline({
       mode: ActiveMode.FINISH,
@@ -166,7 +170,7 @@ export function MilitaryPower({
     setProgramData((prev) => ({
       ...prev,
       [currentDay]: {
-        ...prev[currentDay] || {},
+        ...(prev[currentDay] || {}),
         [selectedExercise]: {
           1: [],
         },
@@ -212,7 +216,7 @@ export function MilitaryPower({
 
   const onRestore = (data: ProgramData) => {
     setTab("training");
-    setProgramData(data);
+    setProgramData(mergeData(data, DEFAULT_MILITARY_POWER_DATA));
   };
 
   const dataForRender =
@@ -291,10 +295,7 @@ export function MilitaryPower({
 
   if (time !== previousTime && connected) {
     if (modeTimeline.mode === ActiveMode.DEFAULT) {
-      setFeedbackData((prev) => [
-        ...prev,
-        { t: time, w: parseFloat(message) },
-      ]);
+      setFeedbackData((prev) => [...prev, { t: time, w: parseFloat(message) }]);
     } else if (modeTimeline.mode === ActiveMode.SET) {
       setProgramData((prev) => ({
         ...prev,
@@ -328,7 +329,7 @@ export function MilitaryPower({
               startTime: time,
               endTime: time + DEFAULT_TIME,
             });
-            LocalStorageService.saveProgramData("MILITARY_POWER", programData);
+            StorageService.saveProgramData("MILITARY_POWER", programData);
           } else {
             setModeTimeline({
               mode: ActiveMode.REST,
@@ -377,7 +378,6 @@ export function MilitaryPower({
         Солдатская мощь (Military Power)
       </Typography>
       <MilitaryPowerDescription />
-
 
       <Box
         sx={{
@@ -543,7 +543,7 @@ export function MilitaryPower({
         </Typography>
         <StyledSwitch checked={tab === "training"} onChange={handleTabChange} />
         <Typography sx={{ color: tab === "training" ? "#ffffff" : "#666" }}>
-          Запись тренировки
+          Записи тренировок
         </Typography>
       </Box>
 
@@ -584,7 +584,7 @@ export function MilitaryPower({
                         {Object.keys(programData)
                           .map(Number)
                           .map((date) => (
-                            <MenuItem key={date} value={date}>
+                            <MenuItem key={Number(date)} value={Number(date)}>
                               {formatDate(date)}
                             </MenuItem>
                           ))}

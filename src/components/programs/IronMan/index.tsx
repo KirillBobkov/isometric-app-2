@@ -31,9 +31,9 @@ import {
   DayData,
   SetDataPoint,
 } from "../../../services/types";
-import { LocalStorageService } from "../../../services/LocalStorageService";
+import { StorageService } from "../../../services/StorageService";
 import { mergeData } from "../../../utils/mergeData";
-import { formatDate } from "../../../utils/dateUtils";
+import { formatDate } from "../../../utils/formatDate";
 
 enum ActiveMode {
   DEFAULT = "default",
@@ -149,10 +149,15 @@ export function IronMan({
   const freezeTime = !connected;
   const { time } = useTimer(0, freezeTime);
 
-  const [programData, setProgramData] = useState<ProgramData>(() => {
-    const storedData = LocalStorageService.getProgramData("IRON_MAN");
-    return mergeData(storedData, DEFAULT_IRON_MAN_DATA);
-  });
+  const [programData, setProgramData] = useState<ProgramData>(DEFAULT_IRON_MAN_DATA);
+
+  useEffect(() => {
+    const loadProgramData = async () => {
+      const storedData = await StorageService.getProgramData("IRON_MAN");
+      setProgramData(mergeData(storedData, DEFAULT_IRON_MAN_DATA));
+    };
+    loadProgramData();
+  }, []);
 
   const [feedbackData, setFeedbackData] = useState<SetDataPoint[]>([]);
 
@@ -192,7 +197,7 @@ export function IronMan({
       endTime: time + DEFAULT_TIME,
     });
 
-    LocalStorageService.saveProgramData("IRON_MAN", programData);
+    StorageService.saveProgramData("IRON_MAN", programData);
   };
 
   const startTraining = () => {
@@ -377,8 +382,6 @@ export function IronMan({
   useEffect(() => {
     if (modeTimeline.mode === ActiveMode.SET && maxWeight > 0 && message) {
       const currentValue = Math.round((Number(message) / maxWeight) * 100);
-      
-      console.log(currentValue, diapason);
 
       if (currentValue !== 0) {
         if (currentValue > (diapason + 10)) {
@@ -615,7 +618,7 @@ export function IronMan({
           onChange={(e) => setTab(e.target.checked ? "training" : "feedback")}
         />
         <Typography sx={{ color: tab === "training" ? "#323232" : "#666" }}>
-          Тренировка
+          Записи тренировок
         </Typography>
       </Box>
       <Card
@@ -708,7 +711,7 @@ export function IronMan({
           disabled={trainigInProgress}
           onDataRestored={(data) => {
             setTab("training");
-            setProgramData(data);
+            setProgramData(mergeData(data, DEFAULT_IRON_MAN_DATA));
           }}
         />
       </Box>
