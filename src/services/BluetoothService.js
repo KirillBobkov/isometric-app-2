@@ -20,6 +20,7 @@ export class BluetoothService {
             services: [serviceUUID],
           },
         ],
+        acceptAllDevices: true,
       })
     );
 
