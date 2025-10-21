@@ -1,12 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import {
   Button,
   Container,
   Typography,
   Box,
   Card,
-  Switch,
-  styled,
+  Tabs,
+  Tab,
   FormControl,
   InputLabel,
   Select,
@@ -14,14 +14,13 @@ import {
   SelectChangeEvent,
 } from "@mui/material";
 
-import { Play, Square } from "lucide-react";
+import { Play, Square, Pause } from "lucide-react";
 
 import { useTimer } from "../../../hooks/useTimer";
 import { MilitaryPowerDescription } from "./MilitaryPowerDescription";
 import { TrainingTimer } from "../../TrainingTimer";
 import { Chart } from "../../Chart";
 import { soundService } from "../../../services/SoundService";
-import { usePrevious } from "../../../hooks/usePrevious";
 import { mergeData } from "../../../utils/mergeData";
 import { formatDate } from "../../../utils/formatDate";
 
@@ -36,6 +35,7 @@ enum ActiveMode {
   SET = "set",
   PREPARING = "preparing",
   FINISH = "finish",
+  PAUSED = "paused",
 }
 
 interface ModeTimeline {
@@ -44,10 +44,16 @@ interface ModeTimeline {
   endTime: number;
 }
 
+interface PausedState {
+  pausedMode: ActiveMode.REST | ActiveMode.SET;
+  remainingTime: number;
+}
+
 export const REST_TIME = 60000;
 export const SET_TIME = 6000;
 export const PREPARE_TIME = 10000;
 export const DEFAULT_TIME = 31536000000;
+export const MAX_FEEDBACK_RECORDS = 200;
 
 const getStatusMessage = (mode: ActiveMode, isConnected: boolean): string => {
   if (!isConnected) return "Подключите тренажер для начала тренировки";
@@ -59,8 +65,14 @@ const getStatusMessage = (mode: ActiveMode, isConnected: boolean): string => {
       return "Подход закончен, отдохните перед следующим подходом";
     case ActiveMode.SET:
       return "Выполняйте упражнение с максимальным усилием";
+    case ActiveMode.PAUSED:
+      return "Тренировка на паузе. Нажмите 'Продолжить' для возобновления";
     case ActiveMode.DEFAULT:
-      return "Если вы готовы, то выберите упражнение и нажмите на кнопку 'Начать тренировку'";
+      return "Если вы готовы, то выберите упражнение и нажмите на кнопку 'Начать'";
+    case ActiveMode.FINISH:
+        return "Если вы готовы, то выберите упражнение и нажмите на кнопку 'Начать'";
+      
+    
     default:
       return "";
   }
@@ -70,6 +82,7 @@ const MODE_COLORS: Record<ActiveMode, string> = {
   [ActiveMode.PREPARING]: "rgb(25, 167, 255)", // Blue
   [ActiveMode.SET]: "rgb(229, 67, 67)", // Red
   [ActiveMode.REST]: "#4CAF50", // Green
+  [ActiveMode.PAUSED]: "#FFA726", // Orange
   [ActiveMode.DEFAULT]: "rgb(25, 167, 255)", // Blue
   [ActiveMode.FINISH]: "rgb(25, 167, 255)", // Blue
 };
@@ -85,44 +98,32 @@ const DEFAULT_MILITARY_POWER_DATA: ProgramData = {
 
 const SET_COUNT = 10;
 
-const StyledSwitch = styled(Switch)(() => ({
-  width: 70,
-  height: 48,
-  padding: 8,
-  "& .MuiSwitch-switchBase": {
-    padding: 11,
-    "&.Mui-checked": {
-      transform: "translateX(22px)",
-      "& + .MuiSwitch-track": {
-        backgroundColor: "#323232",
-        opacity: 1,
-      },
-    },
-  },
-  "& .MuiSwitch-thumb": {
-    width: 26,
-    height: 26,
-    backgroundColor: "#fff",
-  },
-  "& .MuiSwitch-track": {
-    borderRadius: 24,
-    backgroundColor: "#323232",
-    opacity: 1,
-  },
-}));
+// Helper functions
+const calculateMaxWeight = (data: SetDataPoint[]): number => {
+  return data.length > 0
+    ? data.reduce((max, point) => Math.max(max, point.w), 0)
+    : 0;
+};
+
+type ExerciseType = "SHOULDER_PRESS" | "DEADLIFT";
+type TabType = "feedback" | "training";
+
+interface MilitaryPowerProps {
+  connected: boolean;
+  message: string | number;
+}
 
 export function MilitaryPower({
   connected = false,
   message,
-}: {
-  connected: boolean;
-  message: any;
-}) {
+}: MilitaryPowerProps) {
   const freezeTime = !connected;
   const { time } = useTimer(0, freezeTime);
 
   const [selectedDate, setSelectedDate] = useState<number>(currentDay);
-  const [programData, setProgramData] = useState<ProgramData>(DEFAULT_MILITARY_POWER_DATA);
+  const [programData, setProgramData] = useState<ProgramData>(
+    DEFAULT_MILITARY_POWER_DATA
+  );
 
   useEffect(() => {
     const loadProgramData = async () => {
@@ -133,14 +134,17 @@ export function MilitaryPower({
   }, []);
 
   const [feedbackData, setFeedbackData] = useState<SetDataPoint[]>([]);
-  const [tab, setTab] = useState<"feedback" | "training">("feedback");
+  const [tab, setTab] = useState<TabType>("feedback");
   const [set, setSet] = useState({
     current: 1,
     selected: 1,
   });
-  const [selectedExercise, setSelectedExercise] = useState<
-    "SHOULDER_PRESS" | "DEADLIFT"
-  >("DEADLIFT");
+  const [selectedExercise, setSelectedExercise] =
+    useState<ExerciseType>("DEADLIFT");
+
+  // Refs for tracking previous values
+  const prevConnectedRef = useRef(connected);
+  const prevTimeRef = useRef(time);
 
   const [modeTimeline, setModeTimeline] = useState<ModeTimeline>({
     mode: ActiveMode.DEFAULT,
@@ -148,34 +152,43 @@ export function MilitaryPower({
     endTime: Date.now() + DEFAULT_TIME,
   });
 
-  const stopTraining = async () => {
-    if (!connected) {
-      return;
-    }
+  const [pausedState, setPausedState] = useState<PausedState | null>(null);
 
-    StorageService.saveProgramData("MILITARY_POWER", programData);
+  // Memoized callbacks
+  const stopTraining = useCallback(async () => {
+    if (!connected) return;
+
+    await StorageService.saveProgramData("MILITARY_POWER", programData);
 
     setModeTimeline({
       mode: ActiveMode.FINISH,
       startTime: time,
       endTime: time + DEFAULT_TIME,
     });
-  };
+    setPausedState(null);
+  }, [connected, programData, time]);
 
-  const startTraining = () => {
+  const startTraining = useCallback(() => {
     if (!connected) return;
 
     setTab("training");
     setSelectedDate(currentDay);
-    setProgramData((prev) => ({
-      ...prev,
-      [currentDay]: {
-        ...(prev[currentDay] || {}),
-        [selectedExercise]: {
-          1: [],
+    // Полностью перезаписываем данные для текущего упражнения на текущую дату
+    setProgramData((prev) => {
+      const currentDayData = { ...(prev[currentDay] || {}) };
+      // Удаляем все старые данные для текущего упражнения
+      delete currentDayData[selectedExercise];
+      
+      return {
+        ...prev,
+        [currentDay]: {
+          ...currentDayData,
+          [selectedExercise]: {
+            1: [], // Начинаем с чистого подхода 1
+          },
         },
-      },
-    }));
+      };
+    });
     setSet({
       current: 1,
       selected: 1,
@@ -185,117 +198,283 @@ export function MilitaryPower({
       startTime: time,
       endTime: time + PREPARE_TIME,
     });
-  };
+  }, [connected, selectedExercise, time]);
 
-  const handleExerciseChange = (value: string) => {
-    setSelectedExercise(value as "SHOULDER_PRESS" | "DEADLIFT");
+  const pauseTraining = useCallback(() => {
+    if (
+      modeTimeline.mode !== ActiveMode.SET &&
+      modeTimeline.mode !== ActiveMode.REST
+    ) {
+      return;
+    }
+
+    const remainingTime = modeTimeline.endTime - time;
+    setPausedState({
+      pausedMode: modeTimeline.mode,
+      remainingTime,
+    });
+    setModeTimeline((prev) => ({
+      ...prev,
+      mode: ActiveMode.PAUSED,
+    }));
+  }, [modeTimeline.mode, modeTimeline.endTime, time]);
+
+  const resumeTraining = useCallback(() => {
+    if (!pausedState) return;
+
+    setModeTimeline({
+      mode: pausedState.pausedMode,
+      startTime: time,
+      endTime: time + pausedState.remainingTime,
+    });
+    setPausedState(null);
+  }, [pausedState, time]);
+
+  const handleExerciseChange = useCallback((value: string) => {
+    setSelectedExercise(value as ExerciseType);
     setTab("training");
-  };
+  }, []);
 
-  const handleTrainingButton = () =>
-    trainigInProgress ? stopTraining() : startTraining();
+  const handleTabChange = useCallback(
+    (_event: React.SyntheticEvent, newValue: TabType) => {
+      setTab(newValue);
+    },
+    []
+  );
 
-  const handleTabChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setTab(event.target.checked ? "training" : "feedback");
-  };
-
-  const handleDateChange = (event: SelectChangeEvent) => {
+  const handleDateChange = useCallback((event: SelectChangeEvent) => {
     setSelectedDate(Number(event.target.value));
     setSet((prev) => ({
       ...prev,
       selected: 1,
     }));
-  };
+  }, []);
 
-  const handleSetChange = (event: SelectChangeEvent) => {
+  const handleSetChange = useCallback((event: SelectChangeEvent) => {
     setSet((prev) => ({
       ...prev,
       selected: Number(event.target.value),
     }));
-  };
+  }, []);
 
-  const onRestore = (data: ProgramData) => {
+  const onRestore = useCallback((data: ProgramData) => {
     setTab("training");
     setProgramData(mergeData(data, DEFAULT_MILITARY_POWER_DATA));
-  };
+  }, []);
 
-  const dataForRender =
-    tab === "feedback"
-      ? feedbackData
-      : programData[selectedDate]?.[selectedExercise]?.[set.selected] || [];
-
-  const maxWeight =
-    dataForRender.length > 0
-      ? dataForRender.reduce(
-          (max: number, point: SetDataPoint) => Math.max(max, point.w),
-          0
-        )
-      : 0;
-
-  const exerciseData = programData[selectedDate]?.[selectedExercise] || {};
-
-  const allSetData: SetDataPoint[] = Object.values(exerciseData).reduce(
-    (acc: SetDataPoint[], dataSet: SetDataPoint[]) => {
-      return acc.concat(dataSet);
+  // Memoized computed values
+  const dataForRender = useMemo(
+    () => {
+      if (tab === "feedback") {
+        // Показываем максимум последние N записей
+        return feedbackData.length > MAX_FEEDBACK_RECORDS
+          ? feedbackData.slice(-MAX_FEEDBACK_RECORDS)
+          : feedbackData;
+      }
+      return programData[selectedDate]?.[selectedExercise]?.[set.selected] || [];
     },
-    []
+    [
+      tab,
+      feedbackData,
+      programData,
+      selectedDate,
+      selectedExercise,
+      set.selected,
+    ]
   );
 
-  const maxWeightForAllSets =
-    allSetData.length > 0
-      ? allSetData.reduce(
-          (max: number, point: SetDataPoint) => Math.max(max, point.w),
-          0
-        )
-      : 0;
+  const exerciseData = useMemo(
+    () => programData[selectedDate]?.[selectedExercise] || {},
+    [programData, selectedDate, selectedExercise]
+  );
 
-  // Получение данных для графика
-  const getTrainingChartData = () => {
+  // Находим лучший и худший подходы
+  const bestAndWorstSets = useMemo(() => {
+    const setNumbers = Object.keys(exerciseData).map(Number);
+    
+    if (setNumbers.length === 0) {
+      return { best: null, worst: null };
+    }
+
+    let bestSet = { number: 0, weight: 0 };
+    let worstSet = { number: 0, weight: Infinity };
+
+    setNumbers.forEach((setNumber) => {
+      const setData = exerciseData[setNumber];
+      const maxWeightInSet = calculateMaxWeight(setData);
+
+      if (maxWeightInSet > bestSet.weight) {
+        bestSet = { number: setNumber, weight: maxWeightInSet };
+      }
+
+      if (maxWeightInSet < worstSet.weight && maxWeightInSet > 0) {
+        worstSet = { number: setNumber, weight: maxWeightInSet };
+      }
+    });
+
     return {
-      xAxis: dataForRender.map((data: SetDataPoint) => data.t),
-      yAxis: dataForRender.map((data: SetDataPoint) => data.w),
-      title: `Подход ${set.selected}`,
+      best: bestSet.weight > 0 ? bestSet : null,
+      worst: worstSet.weight !== Infinity ? worstSet : null,
     };
-  };
+  }, [exerciseData]);
 
-  const { xAxis, yAxis, title } = getTrainingChartData();
+  const chartData = useMemo(
+    () => ({
+      xAxis: dataForRender.map((data) => data.t),
+      yAxis: dataForRender.map((data) => data.w),
+      title: tab === "feedback" ? "Обратная связь" : `Подход ${set.selected}`,
+    }),
+    [dataForRender, tab, set.selected]
+  );
 
+  const trainigInProgress = useMemo(
+    () =>
+      modeTimeline.mode !== ActiveMode.DEFAULT &&
+      modeTimeline.mode !== ActiveMode.FINISH,
+    [modeTimeline.mode]
+  );
+
+  const canPause = useMemo(
+    () =>
+      modeTimeline.mode === ActiveMode.SET ||
+      modeTimeline.mode === ActiveMode.REST,
+    [modeTimeline.mode]
+  );
+
+  const isPaused = useMemo(
+    () => modeTimeline.mode === ActiveMode.PAUSED,
+    [modeTimeline.mode]
+  );
+
+  const handleTrainingButton = useCallback(
+    () => (trainigInProgress ? stopTraining() : startTraining()),
+    [trainigInProgress, stopTraining, startTraining]
+  );
+
+  const setCount = useMemo(
+    () => Object.keys(exerciseData).length,
+    [exerciseData]
+  );
+
+  const hasTrainingData = useMemo(() => {
+    // Проверяем, есть ли хотя бы одна запись с данными для выбранного упражнения
+    return Object.keys(programData).some((date) => {
+      const exerciseData = programData[Number(date)]?.[selectedExercise];
+      if (!exerciseData) return false;
+      // Проверяем, есть ли хотя бы один подход с данными
+      return Object.values(exerciseData).some(
+        (setData) => Array.isArray(setData) && setData.length > 0
+      );
+    });
+  }, [programData, selectedExercise]);
+
+  const timerProps = useMemo(() => {
+    // Определяем полное время для текущего режима
+    const getFullTimeForMode = (mode: ActiveMode): number => {
+      switch (mode) {
+        case ActiveMode.SET:
+          return SET_TIME;
+        case ActiveMode.REST:
+          return REST_TIME;
+        case ActiveMode.PREPARING:
+          return PREPARE_TIME;
+        default:
+          return 0;
+      }
+    };
+
+    if (isPaused && pausedState) {
+      return {
+        totalTime: getFullTimeForMode(pausedState.pausedMode),
+        time: pausedState.remainingTime,
+        color: MODE_COLORS[pausedState.pausedMode],
+      };
+    }
+
+    return {
+      totalTime:
+        getFullTimeForMode(modeTimeline.mode) ||
+        modeTimeline.endTime - modeTimeline.startTime,
+      time: modeTimeline.endTime - time,
+      color: MODE_COLORS[modeTimeline.mode],
+    };
+  }, [
+    isPaused,
+    pausedState,
+    modeTimeline.mode,
+    modeTimeline.endTime,
+    modeTimeline.startTime,
+    time,
+  ]);
+
+  // Initialize sound service once
   useEffect(() => {
     soundService.initialize();
   }, []);
 
+  // Play sounds when mode changes
   useEffect(() => {
-    if (modeTimeline.mode === ActiveMode.REST) {
-      soundService.play("sound_rest_60_sec");
-    } else if (modeTimeline.mode === ActiveMode.SET) {
-      soundService.play("sound_start_with_max");
-    } else if (modeTimeline.mode === ActiveMode.PREPARING) {
-      soundService.play("sound_prepare");
-    } else if (modeTimeline.mode === ActiveMode.FINISH) {
-      soundService.play("sound_training_finish");
+    switch (modeTimeline.mode) {
+      case ActiveMode.REST:
+        soundService.play("sound_rest_60_sec");
+        break;
+      case ActiveMode.SET:
+        soundService.play("sound_start_with_max");
+        break;
+      case ActiveMode.PREPARING:
+        soundService.play("sound_prepare");
+        break;
+      case ActiveMode.FINISH:
+        soundService.play("sound_training_finish");
+        break;
     }
   }, [modeTimeline.mode]);
 
-  const previousConnected = usePrevious(connected);
+  // Reset state when disconnected
+  useEffect(() => {
+    if (!connected && prevConnectedRef.current) {
+      // Сохраняем данные тренировки если она была в процессе
+      if (trainigInProgress) {
+        StorageService.saveProgramData("MILITARY_POWER", programData);
+      }
+      
+      setSet({
+        current: 1,
+        selected: 1,
+      });
+      setFeedbackData([]); // Очищаем данные обратной связи при отключении
+      setModeTimeline({
+        mode: ActiveMode.DEFAULT,
+        startTime: 0,
+        endTime: time + DEFAULT_TIME,
+      });
+      // feedbackData НЕ очищаем - сохраняем данные
+      setPausedState(null);
+    }
+    prevConnectedRef.current = connected;
+  }, [connected, time, trainigInProgress, programData]);
 
-  if (!connected && previousConnected !== connected) {
-    setSet({
-      current: 1,
-      selected: 1,
-    });
-    setModeTimeline({
-      mode: ActiveMode.DEFAULT,
-      startTime: 0,
-      endTime: time + DEFAULT_TIME,
-    });
-    setFeedbackData([]);
-  }
+  // Save data points when time changes and connected
+  useEffect(() => {
+    if (
+      !connected ||
+      time === prevTimeRef.current ||
+      modeTimeline.mode === ActiveMode.PAUSED
+    ) {
+      prevTimeRef.current = time;
+      return;
+    }
 
-  const previousTime = usePrevious(time);
+    const weight = parseFloat(String(message));
 
-  if (time !== previousTime && connected) {
-    if (modeTimeline.mode === ActiveMode.DEFAULT) {
-      setFeedbackData((prev) => [...prev, { t: time, w: parseFloat(message) }]);
+    if (modeTimeline.mode === ActiveMode.DEFAULT || modeTimeline.mode === ActiveMode.FINISH) {
+      setFeedbackData((prev) => {
+        const newData = [...prev, { t: time, w: weight }];
+        // Храним максимум N последних записей чтобы не переполнять память
+        return newData.length > MAX_FEEDBACK_RECORDS
+          ? newData.slice(-MAX_FEEDBACK_RECORDS)
+          : newData;
+      });
     } else if (modeTimeline.mode === ActiveMode.SET) {
       setProgramData((prev) => ({
         ...prev,
@@ -305,66 +484,86 @@ export function MilitaryPower({
             ...(prev[selectedDate]?.[selectedExercise] || {}),
             [set.current]: [
               ...(prev[selectedDate]?.[selectedExercise]?.[set.current] || []),
-              { t: time, w: parseFloat(message) },
+              { t: time, w: weight },
             ],
           },
         },
       }));
     }
-    // Обработка перехода между режимами
-    if (time >= modeTimeline.endTime && connected) {
-      switch (modeTimeline.mode) {
-        case ActiveMode.PREPARING:
-          setModeTimeline({
-            mode: ActiveMode.SET,
-            startTime: time,
-            endTime: time + PREPARE_TIME,
-          });
-          break;
 
-        case ActiveMode.SET:
-          if (set.current >= SET_COUNT) {
-            setModeTimeline({
-              mode: ActiveMode.FINISH,
-              startTime: time,
-              endTime: time + DEFAULT_TIME,
-            });
-            StorageService.saveProgramData("MILITARY_POWER", programData);
-          } else {
-            setModeTimeline({
-              mode: ActiveMode.REST,
-              startTime: time,
-              endTime: time + REST_TIME,
-            });
-          }
-          break;
+    prevTimeRef.current = time;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    time,
+    connected,
+    message,
+    modeTimeline.mode,
+    selectedDate,
+    selectedExercise,
+    set.current,
+  ]);
 
-        case ActiveMode.REST:
-          setModeTimeline({
-            mode: ActiveMode.SET,
-            startTime: time,
-            endTime: time + SET_TIME,
-          });
-          setSet((prev) => ({
-            ...prev,
-            current: prev.current + 1,
-            selected: prev.current + 1,
-          }));
-          break;
-
-        default:
-          break;
-      }
+  // Handle mode transitions when time exceeds endTime
+  useEffect(() => {
+    if (
+      !connected ||
+      time < modeTimeline.endTime ||
+      modeTimeline.mode === ActiveMode.PAUSED
+    ) {
+      return;
     }
-  }
 
-  const trainigInProgress =
-    modeTimeline.mode !== ActiveMode.DEFAULT &&
-    modeTimeline.mode !== ActiveMode.FINISH;
+    switch (modeTimeline.mode) {
+      case ActiveMode.PREPARING:
+        setModeTimeline({
+          mode: ActiveMode.SET,
+          startTime: time,
+          endTime: time + SET_TIME,
+        });
+        break;
 
-  const setCount = Object.keys(
-    programData[selectedDate]?.[selectedExercise] || {}
-  ).length;
+      case ActiveMode.SET:
+        if (set.current >= SET_COUNT) {
+          setModeTimeline({
+            mode: ActiveMode.FINISH,
+            startTime: time,
+            endTime: time + DEFAULT_TIME,
+          });
+          StorageService.saveProgramData("MILITARY_POWER", programData);
+        } else {
+          setModeTimeline({
+            mode: ActiveMode.REST,
+            startTime: time,
+            endTime: time + REST_TIME,
+          });
+        }
+        break;
+
+      case ActiveMode.REST:
+        setModeTimeline({
+          mode: ActiveMode.SET,
+          startTime: time,
+          endTime: time + SET_TIME,
+        });
+        setSet((prev) => ({
+          ...prev,
+          current: prev.current + 1,
+          selected: prev.current + 1,
+        }));
+        break;
+
+      default:
+        break;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    time,
+    connected,
+    modeTimeline.mode,
+    modeTimeline.endTime,
+    set.current,
+    programData,
+  ]);
 
   return (
     <Container maxWidth="lg" sx={{ p: 0 }}>
@@ -441,10 +640,48 @@ export function MilitaryPower({
                 },
               }}
             >
-              {trainigInProgress
-                ? "Остановить тренировку"
-                : "Начать тренировку"}
+              {trainigInProgress ? "Завершить" : "Начать"}
             </Button>
+
+            {canPause && !isPaused && (
+              <Button
+                variant="contained"
+                size="large"
+                startIcon={<Pause size={24} />}
+                onClick={pauseTraining}
+                disabled={!connected}
+                sx={{
+                  borderRadius: "28px",
+                  padding: "12px 32px",
+                  backgroundColor: "#FFA726",
+                  "&:hover": {
+                    backgroundColor: "#FB8C00",
+                  },
+                }}
+              >
+                Пауза
+              </Button>
+            )}
+
+            {isPaused && (
+              <Button
+                variant="contained"
+                size="large"
+                startIcon={<Play size={24} />}
+                onClick={resumeTraining}
+                disabled={!connected}
+                sx={{
+                  borderRadius: "28px",
+                  padding: "12px 32px",
+                  backgroundColor: "#4CAF50",
+                  "&:hover": {
+                    backgroundColor: "#45a049",
+                  },
+                }}
+              >
+                Продолжить
+              </Button>
+            )}
           </Box>
 
           <Typography
@@ -465,9 +702,9 @@ export function MilitaryPower({
 
           {trainigInProgress && (
             <TrainingTimer
-              totalTime={modeTimeline.endTime - modeTimeline.startTime}
-              time={modeTimeline.endTime - time}
-              color={MODE_COLORS[modeTimeline.mode]}
+              totalTime={timerProps.totalTime}
+              time={timerProps.time}
+              color={timerProps.color}
             />
           )}
         </Card>
@@ -489,19 +726,35 @@ export function MilitaryPower({
               transition: "all 0.3s ease",
               p: 4,
               flexGrow: 1,
+              background: "linear-gradient(135deg, rgba(76, 175, 80, 0.1) 0%, rgba(76, 175, 80, 0.05) 100%)",
             }}
           >
             <Typography
               variant="body2"
-              color="text.secondary"
               align="center"
               sx={{ mb: 1 }}
             >
-              Максимальный вес, поднятый в подходе № {set.selected}
+               Лучший подход
             </Typography>
-            <Typography variant="h1" align="center" sx={{ fontWeight: "bold" }}>
-              {`${maxWeight.toFixed(1)} кг`}
-            </Typography>
+            {bestAndWorstSets.best ? (
+              <>
+                <Typography variant="h1" align="center" sx={{ fontWeight: "bold" }}>
+                  {`${bestAndWorstSets.best.weight.toFixed(1)} кг`}
+                </Typography>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  align="center"
+                  sx={{ mt: 1 }}
+                >
+                  Подход № {bestAndWorstSets.best.number}
+                </Typography>
+              </>
+            ) : (
+              <Typography variant="body2" align="center" sx={{ color: "text.secondary" }}>
+                Нет данных
+              </Typography>
+            )}
           </Card>
 
           <Card
@@ -512,41 +765,68 @@ export function MilitaryPower({
               transition: "all 0.3s ease",
               p: 4,
               flexGrow: 1,
+              background: "linear-gradient(135deg, rgba(229, 67, 67, 0.1) 0%, rgba(229, 67, 67, 0.05) 100%)",
             }}
           >
             <Typography
               variant="body2"
-              color="text.secondary"
               align="center"
               sx={{ mb: 1 }}
             >
-              Максимальный вес, поднятый за всю тренировку
+               Худший подход
             </Typography>
-            <Typography variant="h1" align="center" sx={{ fontWeight: "bold" }}>
-              {`${maxWeightForAllSets.toFixed(1)} кг`}
-            </Typography>
+            {bestAndWorstSets.worst ? (
+              <>
+                <Typography variant="h1" align="center" sx={{ fontWeight: "bold" }}>
+                  {`${bestAndWorstSets.worst.weight.toFixed(1)} кг`}
+                </Typography>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  align="center"
+                  sx={{ mt: 1 }}
+                >
+                  Подход № {bestAndWorstSets.worst.number}
+                </Typography>
+              </>
+            ) : (
+              <Typography  variant="body2" align="center" sx={{ color: "text.secondary" }}>
+                Нет данных
+              </Typography>
+            )}
           </Card>
         </Box>
       </Box>
 
-      <Box
+      <Tabs
+        value={tab}
+        onChange={handleTabChange}
+        aria-label="График тренировки"
         sx={{
           mb: 2,
-          display: "flex",
-          justifyContent: "center",
-          gap: 2,
-          alignItems: "center",
         }}
       >
-        <Typography sx={{ color: tab === "feedback" ? "#ffffff" : "#666" }}>
-          Обратная связь
-        </Typography>
-        <StyledSwitch checked={tab === "training"} onChange={handleTabChange} />
-        <Typography sx={{ color: tab === "training" ? "#ffffff" : "#666" }}>
-          Записи тренировок
-        </Typography>
-      </Box>
-
+        <Tab
+          label="Текущие показания"
+          value="feedback"
+          disabled={trainigInProgress}
+          sx={{
+            fontSize: "16px",
+            textTransform: "none",
+            fontWeight: 500,
+          }}
+        />
+        <Tab
+          label="Записи тренировок"
+          value="training"
+          disabled={trainigInProgress}
+          sx={{
+            fontSize: "16px",
+            textTransform: "none",
+            fontWeight: 500,
+          }}
+        />
+      </Tabs>
       <Card
         sx={{
           display: "flex",
@@ -554,14 +834,14 @@ export function MilitaryPower({
           gap: 0,
           p: 2,
           mb: 4,
-          borderRadius: 4,
+          borderRadius: 4
         }}
       >
         <Box sx={{ flex: 1 }}>
           {tab === "training" && (
             <>
-              <Box sx={{ display: "flex", gap: 2 }}>
-                {selectedExercise && (
+              {hasTrainingData && (
+                <Box sx={{ display: "flex", gap: 2 }}>
                   <Box
                     sx={{
                       display: "flex",
@@ -612,31 +892,41 @@ export function MilitaryPower({
                       </FormControl>
                     )}
                   </Box>
-                )}
-              </Box>
-              <Chart xAxis={xAxis} yAxis={yAxis} title={title} />
+                </Box>
+              )}
+              <Chart
+                xAxis={chartData.xAxis}
+                yAxis={chartData.yAxis}
+                title={chartData.title}
+              />
             </>
           )}
           {tab === "feedback" && (
-            <Chart xAxis={xAxis} yAxis={yAxis} title="Обратная связь" />
+            <Chart
+              xAxis={chartData.xAxis}
+              yAxis={chartData.yAxis}
+              title={chartData.title}
+            />
           )}
         </Box>
+        {tab !== "feedback" && (
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: { xs: "center", md: "center" },
+              flex: { xs: "1 1 100%", md: 1 },
+              mt: { xs: 3, md: 0 },
+              mb: 2,
+            }}
+          >
+            <FileOperations
+              programKey="MILITARY_POWER"
+              disabled={trainigInProgress}
+              onDataRestored={onRestore}
+            />
+          </Box>
+        )}
       </Card>
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: { xs: "center", md: "center" },
-          flex: { xs: "1 1 100%", md: 1 },
-          mt: { xs: 3, md: 0 },
-          mb: 6,
-        }}
-      >
-        <FileOperations
-          programKey="MILITARY_POWER"
-          disabled={trainigInProgress}
-          onDataRestored={onRestore}
-        />
-      </Box>
     </Container>
   );
 }

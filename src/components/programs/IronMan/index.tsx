@@ -1,19 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import {
   Button,
   Container,
   Typography,
   Box,
   Card,
-  Switch,
-  styled,
+  Tabs,
+  Tab,
   InputLabel,
   Select,
   MenuItem,
   FormControl,
   SelectChangeEvent,
 } from "@mui/material";
-import { Play, Square } from "lucide-react";
+import { Play, Square, Pause } from "lucide-react";
 
 // import { generateTrainingReport } from "../../../services/ReportService";
 import { useTimer } from "../../../hooks/useTimer";
@@ -21,7 +21,6 @@ import { IronManDescription } from "./IronManDescription";
 import { TrainingTimer } from "../../TrainingTimer";
 import { Chart } from "../../Chart";
 import { soundService } from "../../../services/SoundService";
-import { usePrevious } from "../../../hooks/usePrevious";
 import { ExerciseSelect } from "../../common/ExerciseSelect";
 import { FileOperations } from "../../common/FileOperations";
 import {
@@ -47,6 +46,7 @@ export const SET_TIME = 120 * 1000;
 export const PREPARE_TIME = 10000;
 export const CHECK_MAX_WEIGHT_TIME = 10000;
 export const DEFAULT_TIME = 31536000000;
+export const MAX_FEEDBACK_RECORDS = 200;
 
 export const getStatusMessage = (
   mode: ActiveMode,
@@ -113,31 +113,6 @@ interface ModeTimeline {
   endTime: number;
 }
 
-const StyledSwitch = styled(Switch)(() => ({
-  width: 70,
-  height: 48,
-  padding: 8,
-  "& .MuiSwitch-switchBase": {
-    padding: 11,
-    "&.Mui-checked": {
-      transform: "translateX(22px)",
-      "& + .MuiSwitch-track": {
-        backgroundColor: "#323232",
-        opacity: 1,
-      },
-    },
-  },
-  "& .MuiSwitch-thumb": {
-    width: 26,
-    height: 26,
-    backgroundColor: "#fff",
-  },
-  "& .MuiSwitch-track": {
-    borderRadius: 24,
-    backgroundColor: "#323232",
-    opacity: 1,
-  },
-}));
 
 export function IronMan({
   connected = false,
@@ -146,10 +121,30 @@ export function IronMan({
   connected: boolean;
   message: any;
 }) {
-  const freezeTime = !connected;
+  const [isPaused, setIsPaused] = useState(false);
+  const freezeTime = !connected || isPaused;
   const { time } = useTimer(0, freezeTime);
 
   const [programData, setProgramData] = useState<ProgramData>(DEFAULT_IRON_MAN_DATA);
+  const [feedbackData, setFeedbackData] = useState<SetDataPoint[]>([]);
+  const [tab, setTab] = useState<"feedback" | "training">("feedback");
+  const [set, setSet] = useState({
+    current: 1,
+    selected: 1,
+  });
+  const [selectedExercise, setSelectedExercise] = useState<ExerciseKey>("DEADLIFT");
+  const [modeTimeline, setModeTimeline] = useState<ModeTimeline>({
+    mode: ActiveMode.DEFAULT,
+    startTime: 0,
+    endTime: Date.now() + DEFAULT_TIME,
+  });
+  const [selectedDate, setSelectedDate] = useState<number>(currentDay);
+  const [pausedTimeLeft, setPausedTimeLeft] = useState(0);
+  const [elapsedTimeOffset, setElapsedTimeOffset] = useState(0); // Накопленное время до паузы
+
+  // Refs for tracking previous values
+  const prevConnectedRef = useRef(connected);
+  const prevTimeRef = useRef(time);
 
   useEffect(() => {
     const loadProgramData = async () => {
@@ -159,33 +154,11 @@ export function IronMan({
     loadProgramData();
   }, []);
 
-  const [feedbackData, setFeedbackData] = useState<SetDataPoint[]>([]);
+  useEffect(() => {
+    soundService.initialize();
+  }, []);
 
-  const [tab, setTab] = useState<"feedback" | "training">("feedback");
-
-  const [set, setSet] = useState({
-    current: 1,
-    selected: 1,
-  });
-
-  const [selectedExercise, setSelectedExercise] = useState<
-    | "DEADLIFT"
-    | "BICEPS_CURL"
-    | "SHOULDER_PRESS"
-    | "FRONT_SQUAT"
-    | "CALF_RAISE"
-    | "BENT_OVER_ROW"
-  >("DEADLIFT");
-
-  const [modeTimeline, setModeTimeline] = useState<ModeTimeline>({
-    mode: ActiveMode.DEFAULT,
-    startTime: 0,
-    endTime: Date.now() + DEFAULT_TIME,
-  });
-
-  const [selectedDate, setSelectedDate] = useState<number>(currentDay);
-
-  const stopExercise = async () => {
+  const stopExercise = useCallback(async () => {
     if (!connected) {
       alert("Пожалуйста, подключите тренажер перед началом тренировки");
       return;
@@ -196,24 +169,33 @@ export function IronMan({
       startTime: time,
       endTime: time + DEFAULT_TIME,
     });
+    setIsPaused(false);
+    setElapsedTimeOffset(0);
 
-    StorageService.saveProgramData("IRON_MAN", programData);
-  };
+    await StorageService.saveProgramData("IRON_MAN", programData);
+  }, [connected, time, programData]);
 
-  const startTraining = () => {
+  const startTraining = useCallback(() => {
     if (!connected) return;
 
     setTab("training");
     setSelectedDate(currentDay);
-    setProgramData((prev) => ({
-      ...prev,
-      [currentDay]: {
-        ...(prev[currentDay] || {}),
-        [selectedExercise]: {
-          1: [],
+    // Полностью перезаписываем данные для текущего упражнения на текущую дату
+    setProgramData((prev) => {
+      const currentDayData = { ...(prev[currentDay] || {}) };
+      // Удаляем все старые данные для текущего упражнения (включая maxWeight)
+      delete currentDayData[selectedExercise];
+      
+      return {
+        ...prev,
+        [currentDay]: {
+          ...currentDayData,
+          [selectedExercise]: {
+            1: [], // Начинаем с чистого подхода 1
+          },
         },
-      },
-    }));
+      };
+    });
     setSet({
       current: 1,
       selected: 1,
@@ -223,46 +205,182 @@ export function IronMan({
       startTime: time,
       endTime: time + PREPARE_TIME,
     });
-  };
+    setIsPaused(false);
+    setElapsedTimeOffset(0); // Сброс накопленного времени при начале упражнения
+  }, [connected, time, selectedExercise]);
 
-  const handleDateChange = (event: SelectChangeEvent) => {
+  const togglePause = useCallback(() => {
+    if (!isPaused) {
+      // Паузим - сохраняем оставшееся время и накапливаем прошедшее время
+      const elapsed = time - modeTimeline.startTime;
+      setElapsedTimeOffset((prev) => prev + elapsed);
+      setPausedTimeLeft(modeTimeline.endTime - time);
+      setIsPaused(true);
+    } else {
+      // Возобновляем - пересчитываем endTime и сбрасываем pausedTimeLeft
+      setModeTimeline((prevTimeline) => ({
+        ...prevTimeline,
+        startTime: time,
+        endTime: time + pausedTimeLeft,
+      }));
+      setIsPaused(false);
+      setPausedTimeLeft(0);
+    }
+  }, [isPaused, modeTimeline.endTime, modeTimeline.startTime, time, pausedTimeLeft]);
+
+  const handleDateChange = useCallback((event: SelectChangeEvent) => {
     setSelectedDate(Number(event.target.value));
     setSet((prev) => ({
       ...prev,
       selected: 1,
     }));
-  };
+  }, []);
 
-  const handleSetChange = (event: SelectChangeEvent) => {
+  const handleSetChange = useCallback((event: SelectChangeEvent) => {
     setSet((prev) => ({
       ...prev,
       selected: Number(event.target.value),
     }));
-  };
-
-  const dataForRender =
-    tab === "feedback"
-      ? feedbackData
-      : programData[selectedDate]?.[selectedExercise]?.[set.selected] || [];
-
-  // Получение данных для графика
-  const getTrainingChartData = () => {
-    return {
-      xAxis: dataForRender.map((data) => data.t),
-      yAxis: dataForRender.map((data) => data.w),
-      title: `Подход ${set.selected}`,
-    };
-  };
-
-  const { xAxis, yAxis, title } = getTrainingChartData();
-
-  useEffect(() => {
-    soundService.initialize();
   }, []);
 
-  const diapason = LONG_EXERCISES.includes(selectedExercise) ? 20 : 40;
+  const diapason = useMemo(
+    () => (LONG_EXERCISES.includes(selectedExercise) ? 20 : 40),
+    [selectedExercise]
+  );
 
+  const dataForRender = useMemo(
+    () => {
+      if (tab === "feedback") {
+        // Показываем максимум последние N записей
+        return feedbackData.length > MAX_FEEDBACK_RECORDS
+          ? feedbackData.slice(-MAX_FEEDBACK_RECORDS)
+          : feedbackData;
+      }
+      return programData[selectedDate]?.[selectedExercise]?.[set.selected] || [];
+    },
+    [tab, feedbackData, programData, selectedDate, selectedExercise, set.selected]
+  );
+
+  const chartData = useMemo(
+    () => ({
+      xAxis: dataForRender.map((data) => data.t),
+      yAxis: dataForRender.map((data) => data.w),
+      title: tab === "feedback" ? "Обратная связь" : `Подход ${set.selected}`,
+    }),
+    [dataForRender, tab, set.selected]
+  );
+
+  const trainigInProgress = useMemo(
+    () =>
+      modeTimeline.mode !== ActiveMode.DEFAULT &&
+      modeTimeline.mode !== ActiveMode.FINISH,
+    [modeTimeline.mode]
+  );
+
+  const setCount = useMemo(
+    () =>
+      Object.keys(programData[selectedDate]?.[selectedExercise] || {}).filter(
+        (key) => key !== "maxWeight"
+      ).length,
+    [programData, selectedDate, selectedExercise]
+  );
+
+  const maxWeight = useMemo(
+    () => programData[selectedDate]?.[selectedExercise]?.maxWeight || 0,
+    [programData, selectedDate, selectedExercise]
+  );
+
+  const calculateAverageWeight = useCallback(() => {
+    const currentSetData =
+      programData[selectedDate]?.[selectedExercise]?.[set.selected] || [];
+    return currentSetData.length > 0
+      ? (
+          currentSetData.reduce((acc, curr) => acc + curr.w, 0) /
+          currentSetData.length
+        ).toFixed(1)
+      : 0;
+  }, [programData, selectedDate, selectedExercise, set.selected]);
+
+  const datesWithData = useMemo(() => {
+    // Возвращаем список дат, где есть данные для текущего упражнения
+    return Object.keys(programData)
+      .map(Number)
+      .filter((date) => {
+        const exerciseData = programData[date]?.[selectedExercise];
+        if (!exerciseData) return false;
+        // Проверяем, есть ли хотя бы один подход с данными
+        return Object.keys(exerciseData).some((key) => {
+          if (key === "maxWeight") return false;
+          const setData = exerciseData[Number(key)];
+          return Array.isArray(setData) && setData.length > 0;
+        });
+      })
+      .sort((a, b) => b - a); // Сортируем по убыванию (новые даты первыми)
+  }, [programData, selectedExercise]);
+
+  const hasTrainingData = useMemo(() => {
+    return datesWithData.length > 0;
+  }, [datesWithData]);
+
+  // Автоматически выбираем первую доступную дату при смене упражнения
+  // Но НЕ переключаем если идет тренировка или выбран текущий день
   useEffect(() => {
+    if (
+      trainigInProgress ||
+      selectedDate === currentDay ||
+      datesWithData.length === 0 ||
+      datesWithData.includes(selectedDate)
+    ) {
+      return;
+    }
+    
+    setSelectedDate(datesWithData[0]);
+    setSet((prev) => ({ ...prev, selected: 1 }));
+  }, [datesWithData, selectedDate, trainigInProgress]);
+
+  const timerProps = useMemo(() => {
+    // Определяем полное время для текущего режима
+    const getFullTimeForMode = (mode: ActiveMode): number => {
+      switch (mode) {
+        case ActiveMode.SET:
+          return diapason === 20 ? SET_TIME : SET_TIME / 2;
+        case ActiveMode.CHECK_MAX_WEIGHT:
+          return CHECK_MAX_WEIGHT_TIME;
+        case ActiveMode.PREPARING:
+          return PREPARE_TIME;
+        default:
+          return 0;
+      }
+    };
+
+    if (isPaused && pausedTimeLeft > 0) {
+      // Во время паузы показываем оставшееся время
+      return {
+        totalTime: getFullTimeForMode(modeTimeline.mode),
+        time: pausedTimeLeft,
+        color: MODE_COLORS[modeTimeline.mode],
+      };
+    }
+
+    return {
+      totalTime: getFullTimeForMode(modeTimeline.mode) || (modeTimeline.endTime - modeTimeline.startTime),
+      time: modeTimeline.endTime - time,
+      color: MODE_COLORS[modeTimeline.mode],
+    };
+  }, [
+    isPaused,
+    pausedTimeLeft,
+    modeTimeline.mode,
+    modeTimeline.endTime,
+    modeTimeline.startTime,
+    time,
+    diapason,
+  ]);
+
+  // Звуки при смене режима
+  useEffect(() => {
+    if (isPaused) return;
+
     if (modeTimeline.mode === ActiveMode.PREPARING) {
       soundService.play("sound_prepare_with_max");
     } else if (modeTimeline.mode === ActiveMode.CHECK_MAX_WEIGHT) {
@@ -276,29 +394,55 @@ export function IronMan({
     } else if (modeTimeline.mode === ActiveMode.FINISH) {
       soundService.play("sound_exersise_finished");
     }
-  }, [modeTimeline.mode, diapason]);
+  }, [modeTimeline.mode, isPaused, diapason]);
 
-  const previousConnected = usePrevious(connected);
+  // Сброс при отключении
+  useEffect(() => {
+    if (!connected && prevConnectedRef.current) {
+      // Сохраняем данные тренировки если она была в процессе
+      if (trainigInProgress) {
+        StorageService.saveProgramData("IRON_MAN", programData);
+      }
 
-  if (!connected && previousConnected !== connected) {
-    setSet({
-      current: 1,
-      selected: 1,
-    });
-    setModeTimeline({
-      mode: ActiveMode.DEFAULT,
-      startTime: 0,
-      endTime: time + DEFAULT_TIME,
-    });
-    setFeedbackData([]);
-  }
+      setSet({
+        current: 1,
+        selected: 1,
+      });
+      setModeTimeline({
+        mode: ActiveMode.DEFAULT,
+        startTime: 0,
+        endTime: Date.now() + DEFAULT_TIME,
+      });
+      setFeedbackData([]); // Очищаем данные обратной связи при отключении
+      setIsPaused(false);
+      setElapsedTimeOffset(0);
+    }
+    prevConnectedRef.current = connected;
+  }, [connected, trainigInProgress, programData]);
 
-  const previousTime = usePrevious(time);
+  // Обработка данных от тренажера
+  useEffect(() => {
+    if (
+      !connected ||
+      time === prevTimeRef.current ||
+      isPaused
+    ) {
+      prevTimeRef.current = time;
+      return;
+    }
 
-  if (time !== previousTime && connected) {
-    // Обработка данных от тренажера
-    if (modeTimeline.mode === ActiveMode.DEFAULT) {
-      setFeedbackData((prev) => [...prev, { t: time, w: parseFloat(message) }]);
+    const weight = parseFloat(String(message));
+    // Используем накопленное время + текущее прошедшее время для корректной работы с паузой
+    const totalElapsedTime = elapsedTimeOffset + (time - modeTimeline.startTime);
+
+    if (modeTimeline.mode === ActiveMode.DEFAULT || modeTimeline.mode === ActiveMode.FINISH) {
+      setFeedbackData((prev) => {
+        const newData = [...prev, { t: time, w: weight }];
+        // Храним максимум N последних записей чтобы не переполнять память
+        return newData.length > MAX_FEEDBACK_RECORDS
+          ? newData.slice(-MAX_FEEDBACK_RECORDS)
+          : newData;
+      });
     } else if (modeTimeline.mode === ActiveMode.CHECK_MAX_WEIGHT) {
       setProgramData((prev) => ({
         ...prev,
@@ -308,91 +452,75 @@ export function IronMan({
             ...prev[selectedDate]?.[selectedExercise],
             maxWeight: Math.max(
               prev[selectedDate]?.[selectedExercise]?.maxWeight || 0,
-              parseFloat(message)
+              weight
             ),
           },
         },
       }));
     } else if (modeTimeline.mode === ActiveMode.SET) {
+      const currentSetNumber = set.current;
       setProgramData((prev) => ({
         ...prev,
         [selectedDate]: {
           ...prev[selectedDate],
           [selectedExercise]: {
             ...prev[selectedDate]?.[selectedExercise],
-            [set.current]: [
-              ...(prev[selectedDate]?.[selectedExercise]?.[set.current] || []),
-              { t: time, w: parseFloat(message) },
+            [currentSetNumber]: [
+              ...(prev[selectedDate]?.[selectedExercise]?.[currentSetNumber] || []),
+              { t: totalElapsedTime, w: weight },
             ],
           },
         },
       }));
     }
-    // Обработка перехода между режимами
-    if (time >= modeTimeline.endTime && connected) {
-      switch (modeTimeline.mode) {
-        case ActiveMode.PREPARING:
-          setModeTimeline({
-            mode: ActiveMode.CHECK_MAX_WEIGHT,
-            startTime: time,
-            endTime: time + CHECK_MAX_WEIGHT_TIME,
-          });
-          break;
-        case ActiveMode.CHECK_MAX_WEIGHT:
-          setModeTimeline({
-            mode: ActiveMode.SET,
-            startTime: time,
-            endTime: time + (diapason === 20 ? SET_TIME : SET_TIME / 2),
-          });
-          break;
 
-        case ActiveMode.SET:
-          stopExercise();
-          break;
+    prevTimeRef.current = time;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [time, connected, isPaused, modeTimeline.mode, modeTimeline.startTime, elapsedTimeOffset, message, selectedDate, selectedExercise, set.current]);
 
-        default:
-          break;
-      }
-    }
-  }
-
-  const trainigInProgress =
-    modeTimeline.mode !== ActiveMode.DEFAULT &&
-    modeTimeline.mode !== ActiveMode.FINISH;
-
-  const setCount = Object.keys(
-    programData[selectedDate]?.[selectedExercise] || {}
-  ).filter((key) => key !== "maxWeight").length;
-
-  const maxWeight =
-    programData[selectedDate]?.[selectedExercise]?.maxWeight || 0;
-
-  const calculateAverageWeight = () => {
-    const currentSetData =
-      programData[selectedDate]?.[selectedExercise]?.[set.selected] || [];
-    return currentSetData.length > 0
-      ? (
-          currentSetData.reduce((acc, curr) => acc + curr.w, 0) /
-          currentSetData.length
-        ).toFixed(1)
-      : 0;
-  };
-
-  // Moving sound logic to useEffect to prevent excessive calls during render
+  // Обработка переходов между режимами
   useEffect(() => {
-    if (modeTimeline.mode === ActiveMode.SET && maxWeight > 0 && message) {
-      const currentValue = Math.round((Number(message) / maxWeight) * 100);
+    if (!connected || isPaused || time < modeTimeline.endTime) return;
 
-      if (currentValue !== 0) {
-        if (currentValue > (diapason + 10)) {
-          soundService.play("sound_go_high");
-        } 
-        if (currentValue < (diapason - 10)) {
-          soundService.play("sound_go_low");
-        }
+    switch (modeTimeline.mode) {
+      case ActiveMode.PREPARING:
+        setModeTimeline({
+          mode: ActiveMode.CHECK_MAX_WEIGHT,
+          startTime: time,
+          endTime: time + CHECK_MAX_WEIGHT_TIME,
+        });
+        setElapsedTimeOffset(0); // Сброс при переходе к новому режиму
+        break;
+      case ActiveMode.CHECK_MAX_WEIGHT:
+        setModeTimeline({
+          mode: ActiveMode.SET,
+          startTime: time,
+          endTime: time + (diapason === 20 ? SET_TIME : SET_TIME / 2),
+        });
+        setElapsedTimeOffset(0); // Сброс при переходе к подходу
+        break;
+      case ActiveMode.SET:
+        stopExercise();
+        break;
+      default:
+        break;
+    }
+  }, [time, connected, isPaused, modeTimeline.endTime, modeTimeline.mode, diapason, stopExercise]);
+
+  // Звуковая обратная связь во время подхода
+  useEffect(() => {
+    if (isPaused || modeTimeline.mode !== ActiveMode.SET || maxWeight === 0 || !message) return;
+
+    const currentValue = Math.round((Number(message) / maxWeight) * 100);
+
+    if (currentValue !== 0) {
+      if (currentValue > diapason + 10) {
+        soundService.play("sound_go_high");
+      } else if (currentValue < diapason - 10) {
+        soundService.play("sound_go_low");
       }
     }
-  }, [modeTimeline.mode, maxWeight, message, diapason]);
+  }, [isPaused, modeTimeline.mode, maxWeight, message, diapason]);
 
   return (
     <Container maxWidth="lg" sx={{ p: 0 }}>
@@ -464,6 +592,7 @@ export function IronMan({
               disabled={
                 !connected ||
                 modeTimeline.mode === ActiveMode.PREPARING ||
+                modeTimeline.mode === ActiveMode.CHECK_MAX_WEIGHT ||
                 !selectedExercise
               }
               sx={{
@@ -475,8 +604,48 @@ export function IronMan({
                 },
               }}
             >
-              {trainigInProgress ? "Завершить упражнение" : "Начать упражнение"}
+              {trainigInProgress ? "Завершить" : "Начать"}
             </Button>
+
+            {trainigInProgress && !isPaused && (
+              <Button
+                variant="contained"
+                size="large"
+                startIcon={<Pause size={24} />}
+                onClick={togglePause}
+                disabled={!connected}
+                sx={{
+                  borderRadius: "28px",
+                  padding: "12px 32px",
+                  backgroundColor: "#FFA726",
+                  "&:hover": {
+                    backgroundColor: "#FB8C00",
+                  },
+                }}
+              >
+                Пауза
+              </Button>
+            )}
+
+            {isPaused && (
+              <Button
+                variant="contained"
+                size="large"
+                startIcon={<Play size={24} />}
+                onClick={togglePause}
+                disabled={!connected}
+                sx={{
+                  borderRadius: "28px",
+                  padding: "12px 32px",
+                  backgroundColor: "#4CAF50",
+                  "&:hover": {
+                    backgroundColor: "#45a049",
+                  },
+                }}
+              >
+                Продолжить
+              </Button>
+            )}
           </Box>
 
           <Typography
@@ -497,9 +666,9 @@ export function IronMan({
 
           {trainigInProgress && (
             <TrainingTimer
-              totalTime={modeTimeline.endTime - modeTimeline.startTime}
-              time={modeTimeline.endTime - time}
-              color={MODE_COLORS[modeTimeline.mode]}
+              totalTime={timerProps.totalTime}
+              time={timerProps.time}
+              color={timerProps.color}
             />
           )}
         </Card>
@@ -521,15 +690,18 @@ export function IronMan({
               transition: "all 0.3s ease",
               p: 4,
               flexGrow: 1,
-              backgroundColor: (() => {
-                if (modeTimeline.mode !== ActiveMode.SET) return "none";
+              background: (() => {
+                if (modeTimeline.mode !== ActiveMode.SET) 
+                  return "linear-gradient(135deg, rgba(25, 167, 255, 0.1) 0%, rgba(25, 167, 255, 0.05) 100%)";
 
                 const currentValue =
                   maxWeight > 0
                     ? Math.round((Number(message) / maxWeight) * 100)
                     : 0;
 
-                if (currentValue === 0) return "none";
+                if (currentValue === 0) 
+                  return "linear-gradient(135deg, rgba(25, 167, 255, 0.1) 0%, rgba(25, 167, 255, 0.05) 100%)";
+                
                 return Math.abs(currentValue - diapason) > 10
                   ? "rgb(120, 18, 18)"
                   : "rgb(35, 142, 39)";
@@ -538,7 +710,6 @@ export function IronMan({
           >
             <Typography
               variant="body2"
-              color="text.secondary"
               align="center"
               sx={{ mb: 1 }}
             >
@@ -561,11 +732,11 @@ export function IronMan({
               transition: "all 0.3s ease",
               p: 4,
               flexGrow: 1,
+              background: "linear-gradient(135deg, rgba(76, 175, 80, 0.1) 0%, rgba(76, 175, 80, 0.05) 100%)",
             }}
           >
             <Typography
               variant="body2"
-              color="text.secondary"
               align="center"
               sx={{ mb: 1 }}
             >
@@ -584,11 +755,11 @@ export function IronMan({
               transition: "all 0.3s ease",
               p: 4,
               flexGrow: 1,
+              background: "linear-gradient(135deg, rgba(229, 67, 67, 0.1) 0%, rgba(229, 67, 67, 0.05) 100%)",
             }}
           >
             <Typography
               variant="body2"
-              color="text.secondary"
               align="center"
               sx={{ mb: 1 }}
             >
@@ -601,26 +772,35 @@ export function IronMan({
         </Box>
       </Box>
 
-      <Box
+      <Tabs
+        value={tab}
+        onChange={(_, newValue) => setTab(newValue)}
+        aria-label="График тренировки"
         sx={{
           mb: 2,
-          display: "flex",
-          justifyContent: "center",
-          gap: 2,
-          alignItems: "center",
         }}
       >
-        <Typography sx={{ color: tab === "feedback" ? "#323232" : "#666" }}>
-          Обратная связь
-        </Typography>
-        <StyledSwitch
-          checked={tab === "training"}
-          onChange={(e) => setTab(e.target.checked ? "training" : "feedback")}
+        <Tab
+          label="Текущие показания"
+          value="feedback"
+          disabled={trainigInProgress}
+          sx={{
+            fontSize: "16px",
+            textTransform: "none",
+            fontWeight: 500,
+          }}
         />
-        <Typography sx={{ color: tab === "training" ? "#323232" : "#666" }}>
-          Записи тренировок
-        </Typography>
-      </Box>
+        <Tab
+          label="Записи тренировок"
+          value="training"
+          disabled={trainigInProgress}
+          sx={{
+            fontSize: "16px",
+            textTransform: "none",
+            fontWeight: 500,
+          }}
+        />
+      </Tabs>
       <Card
         sx={{
           display: "flex",
@@ -634,8 +814,8 @@ export function IronMan({
         <Box sx={{ flex: 1 }}>
           {tab === "training" && (
             <>
-              <Box sx={{ display: "flex", gap: 2 }}>
-                {selectedExercise && (
+              {hasTrainingData && (
+                <Box sx={{ display: "flex", gap: 2 }}>
                   <Box
                     sx={{
                       display: "flex",
@@ -655,13 +835,11 @@ export function IronMan({
                         onChange={handleDateChange}
                         size="small"
                       >
-                        {Object.keys(programData)
-                          .map(Number)
-                          .map((date) => (
-                            <MenuItem key={date} value={date}>
-                              {formatDate(date)}
-                            </MenuItem>
-                          ))}
+                        {datesWithData.map((date) => (
+                          <MenuItem key={date} value={date}>
+                            {formatDate(date)}
+                          </MenuItem>
+                        ))}
                       </Select>
                     </FormControl>
 
@@ -686,35 +864,44 @@ export function IronMan({
                       </FormControl>
                     )}
                   </Box>
-                )}
-              </Box>
+                </Box>
+              )}
+              <Chart
+                xAxis={chartData.xAxis}
+                yAxis={chartData.yAxis}
+                title={chartData.title}
+              />
             </>
           )}
-          <Chart
-            xAxis={xAxis}
-            yAxis={yAxis}
-            title={tab === "feedback" ? "Обратная связь" : title}
-          />
+          {tab === "feedback" && (
+            <Chart
+              xAxis={chartData.xAxis}
+              yAxis={chartData.yAxis}
+              title={chartData.title}
+            />
+          )}
         </Box>
+        {tab !== "feedback" && (
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: { xs: "center", md: "center" },
+              flex: { xs: "1 1 100%", md: 1 },
+              mt: { xs: 3, md: 0 },
+              mb: 2,
+            }}
+          >
+            <FileOperations
+              programKey="IRON_MAN"
+              disabled={trainigInProgress}
+              onDataRestored={(data) => {
+                setTab("training");
+                setProgramData(mergeData(data, DEFAULT_IRON_MAN_DATA));
+              }}
+            />
+          </Box>
+        )}
       </Card>
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: { xs: "center", md: "center" },
-          flex: { xs: "1 1 100%", md: 1 },
-          mt: { xs: 3, md: 0 },
-          mb: 6,
-        }}
-      >
-        <FileOperations
-          programKey="IRON_MAN"
-          disabled={trainigInProgress}
-          onDataRestored={(data) => {
-            setTab("training");
-            setProgramData(mergeData(data, DEFAULT_IRON_MAN_DATA));
-          }}
-        />
-      </Box>
     </Container>
   );
 }

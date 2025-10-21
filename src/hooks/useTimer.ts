@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 
 
-const TIME_STEP = 300;
+const TIME_STEP = 700;
 export const useTimer = (initialValue: number = 0, freeze: boolean = false) => {
   const [time, setTime] = useState(initialValue);
   const intervalRef = useRef<any>();
