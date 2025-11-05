@@ -1,9 +1,4 @@
-import {
-  Box,
-  Container,
-  CssBaseline,
-  ThemeProvider,
-} from "@mui/material";
+import { Box, Container, CssBaseline, ThemeProvider } from "@mui/material";
 import { appTheme } from "./assets/theme";
 import { Header } from "./components/Header";
 import { Routes, Route, useLocation, Link } from "react-router-dom";
@@ -18,18 +13,21 @@ import { MilitaryPower } from "./components/programs/MilitaryPower/index";
 import { ArrowLeftIcon } from "lucide-react";
 import { useBluetoothConnection } from "./hooks/useBluetoothConnection";
 import { BluetoothService } from "./services/BluetoothService";
+import { useEffect } from "react";
+import { soundService } from "./services/SoundService";
 
 const bluetoothService = new BluetoothService();
 
 export default function App() {
   const location = useLocation();
 
-  const {
-    connected,
-    message,
-    handleConnect,
-    handleDisconnect,
-  } = useBluetoothConnection(bluetoothService);
+  // Initialize sound service once
+  useEffect(() => {
+    soundService.initialize();
+  }, []);
+
+  const { connected, message, handleConnect, handleDisconnect } =
+    useBluetoothConnection(bluetoothService);
 
   return (
     <ThemeProvider theme={appTheme}>
@@ -50,15 +48,18 @@ export default function App() {
             }}
           >
             {location.pathname !== "/" && (
-              <Link to="/" style={{ 
-                position: "absolute", 
-                top: "90px", 
-                left: "16px", 
-                display: "flex", 
-                alignItems: "center",
-                color: "inherit",
-                textDecoration: "none" 
-              }}>
+              <Link
+                to="/"
+                style={{
+                  position: "absolute",
+                  top: "90px",
+                  left: "16px",
+                  display: "flex",
+                  alignItems: "center",
+                  color: "inherit",
+                  textDecoration: "none",
+                }}
+              >
                 <ArrowLeftIcon style={{ marginRight: "5px" }} />
                 НАЗАД
               </Link>

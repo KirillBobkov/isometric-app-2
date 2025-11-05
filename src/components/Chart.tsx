@@ -28,7 +28,7 @@ export const Chart: React.FC<ChartProps> = ({
         boxShadow: "none",
       }}
     >
-      <CardContent sx={{ flexGrow: 1, p: 1 }}>
+      <CardContent sx={{ flexGrow: 1, p: 0 }}>
         <LineChart
           xAxis={[
             {

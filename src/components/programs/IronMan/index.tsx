@@ -154,10 +154,6 @@ export function IronMan({
     loadProgramData();
   }, []);
 
-  useEffect(() => {
-    soundService.initialize();
-  }, []);
-
   const stopExercise = useCallback(async () => {
     if (!connected) {
       alert("Пожалуйста, подключите тренажер перед началом тренировки");

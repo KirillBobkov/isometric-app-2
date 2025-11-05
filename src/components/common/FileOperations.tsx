@@ -84,22 +84,21 @@ export const FileOperations = memo(
           title="Сохранится файл формата .json который можно будет загрузить при следующем сеансе и просмотреть каждый день, упражнение и подход"
           arrow
         >
-          <span>
             <Button
               variant="contained"
               size="large"
-              startIcon={<Download size={24} />}
+              startIcon={<Download size={20} />}
               onClick={handleSaveTraining}
               disabled={disabled}
               sx={{
                 borderRadius: "28px",
-                padding: "12px 32px",
+                padding: "12px 12px",
                 backgroundColor: "#323232",
+                margin: 0
               }}
             >
-              Скачать историю
             </Button>
-          </span>
+
         </Tooltip>
 
         <Tooltip
@@ -111,15 +110,14 @@ export const FileOperations = memo(
               component="label"
               variant="contained"
               size="large"
-              startIcon={<Upload size={24} />}
+              startIcon={<Upload size={20} />}
               disabled={disabled}
               sx={{
                 borderRadius: "28px",
-                padding: "12px 32px",
+                padding: "12px 12px",
                 backgroundColor: "#323232",
               }}
             >
-              Загрузить историю
               <input
                 type="file"
                 hidden
